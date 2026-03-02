@@ -27,11 +27,13 @@ function generateMonthlyPdf(ss, monthlyModel) {
   doc.saveAndClose();
 
   var pdfFile = exportPdfFromCopy_(ss, docCopy, buildMonthlyFileName_(ss, monthlyModel));
+  var pdfId = pdfFile.getId();
+  var fileUrl = buildDriveFileViewUrl_(pdfFile);
   if (DECISION_CONFIG && DECISION_CONFIG.DEV_MODE) {
     var monthlySheet = _getSheetByName(ss, SHEET_MONTHLY_REPORT);
-    if (monthlySheet) monthlySheet.getRange('H1').setValue('PDF: ' + pdfFile.getUrl());
+    if (monthlySheet) monthlySheet.getRange('H1').setValue('PDF: ' + fileUrl);
   }
-  return { fileId: pdfFile.getId(), fileUrl: pdfFile.getUrl() };
+  return { fileId: pdfId, fileUrl: fileUrl };
 }
 
 function generateFirstPdf(ss, firstModel) {
@@ -48,11 +50,13 @@ function generateFirstPdf(ss, firstModel) {
   doc.saveAndClose();
 
   var pdfFile = exportPdfFromCopy_(ss, docCopy, buildFirstFileName_(ss, firstModel));
+  var pdfId = pdfFile.getId();
+  var fileUrl = buildDriveFileViewUrl_(pdfFile);
   if (DECISION_CONFIG && DECISION_CONFIG.DEV_MODE) {
     var reportSheet = _getSheetByName(ss, SHEET_REPORTS);
-    if (reportSheet) reportSheet.getRange('H1').setValue('PDF: ' + pdfFile.getUrl());
+    if (reportSheet) reportSheet.getRange('H1').setValue('PDF: ' + fileUrl);
   }
-  return { fileId: pdfFile.getId(), fileUrl: pdfFile.getUrl() };
+  return { fileId: pdfId, fileUrl: fileUrl };
 }
 
 function resolveTemplateId_(type) {
@@ -68,7 +72,7 @@ function createReportDocCopy_(templateId, copyName, ss, type) {
     var f = DriveApp.getFileById(templateId).makeCopy(copyName);
     return { file: f, doc: DocumentApp.openById(f.getId()) };
   } catch (e) {
-    var warnSheet = _getSheetByName(ss, SHEET_REPORTS || 'Reports');
+    var warnSheet = _getSheetByName(ss, SHEET_REPORTS || 'Debug');
     if (warnSheet) {
       warnSheet.getRange('B4').setValue(
         'WARNING: ' + (type || 'report') + ' template copy failed, fallback to blank doc. ' + (e.message || String(e))
@@ -92,7 +96,35 @@ function exportPdfFromCopy_(ss, docCopy, pdfName) {
       if (reportSheet) reportSheet.getRange('B4').setValue('WARNING: OUTPUT_FOLDER_ID unavailable, fallback to root. ' + (e.message || String(e)));
     }
   }
+  try {
+    // Best-effort: make link opening stable for external viewers.
+    pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (shareErr) {
+    var shareWarnSheet = _getSheetByName(ss, SHEET_REPORTS || 'Debug');
+    if (shareWarnSheet) {
+      shareWarnSheet.getRange('B4').setValue('WARNING: PDF sharing setup failed. ' + (shareErr.message || String(shareErr)));
+    }
+  }
   return pdfFile;
+}
+
+function buildDriveFileViewUrl_(fileOrId) {
+  var id = '';
+  var resourceKey = '';
+  if (fileOrId && typeof fileOrId.getId === 'function') {
+    id = String(fileOrId.getId() || '').trim();
+    try {
+      resourceKey = String(fileOrId.getResourceKey ? (fileOrId.getResourceKey() || '') : '').trim();
+    } catch (e) {
+      resourceKey = '';
+    }
+  } else {
+    id = String(fileOrId || '').trim();
+  }
+  if (!id) return '';
+  var url = 'https://drive.google.com/file/d/' + id + '/view?usp=sharing';
+  if (resourceKey) url += '&resourcekey=' + encodeURIComponent(resourceKey);
+  return url;
 }
 
 function getClientName_(ss) {
@@ -208,19 +240,21 @@ function ellipsize_(s, maxLen) {
 }
 
 function mapIssueTypeToTitle_(issueType) {
-  var t = String(issueType || '').toLowerCase();
+  var t = _normalizeIssueTypeKey_(issueType);
   if (t === 'bleeding') return 'This card is losing money';
   if (t === 'prebonus') return 'Bonus not yet confirmed';
-  if (t === 'feedue' || t === 'annual_fee_due') return 'Annual renewal approaching';
+  if (t === 'feedue') return 'Annual renewal approaching';
   if (t === 'datastale') return 'Data not confirmed this month';
   if (t === 'dataanomaly') return 'Large change detected';
   return 'Item to review';
 }
 
 function _normalizeIssueTypeKey_(issueType) {
-  var t = String(issueType || '').toLowerCase();
+  var normalized = (typeof normalizeEventType_ === 'function') ? normalizeEventType_(issueType) : issueType;
+  var t = String(normalized || '').toLowerCase();
   if (t === 'bonus_not_collected') return 'prebonus';
-  if (t === 'annual_fee_due') return 'feedue';
+  if (t === 'feedue' || t === 'annual_fee_due') return 'feedue';
+  if (t === 'feedue') return 'feedue';
   return t;
 }
 
@@ -317,7 +351,7 @@ function buildMonthlyItemsBlock_(monthlyModel) {
     var action = sanitizeOneLine_(it.action || 'Review and take action.');
     if (issueType === 'bleeding') {
       var impact = it.impactUsd != null && !isNaN(Number(it.impactUsd)) ? Number(it.impactUsd) : 0;
-      status = 'Projected annual net loss: ' + formatUsdSigned_(-Math.abs(impact)) + '.';
+      status = impact > 0 ? ('Projected annual net loss: ' + formatUsdSigned_(-Math.abs(impact)) + '.') : 'Potential upside';
       if (action.toLowerCase().indexOf('downgrade') >= 0 || action.toLowerCase().indexOf('product change') >= 0) {
         action = 'Review downgrade or product change options before the annual fee posts.';
       } else {

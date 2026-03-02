@@ -124,16 +124,46 @@ function _isDevMode_() {
   return !!(DECISION_CONFIG && DECISION_CONFIG.DEV_MODE);
 }
 
+function normalizeEventType_(t) {
+  if (t == null || t === '') return t;
+  var raw = String(t).trim();
+  var lower = raw.toLowerCase();
+  var map = {
+    bleeding: 'Bleeding',
+    prebonus: 'PreBonus',
+    feedue: 'FeeDue',
+    annual_fee_due: 'FeeDue',
+    datastale: 'DataStale',
+    dataanomaly: 'DataAnomaly',
+    marketwindow: 'MarketWindow'
+  };
+  if (map[lower]) return map[lower];
+  if (['Bleeding', 'PreBonus', 'FeeDue', 'DataStale', 'DataAnomaly', 'MarketWindow'].indexOf(raw) < 0) {
+    Logger.log('[EventType][Warn] unknown event type: ' + raw);
+  }
+  return raw;
+}
+
+function _defaultActionByIssueType_(issueType) {
+  var t = normalizeEventType_(issueType);
+  if (t === 'Bleeding') return 'Cancel, downgrade, or replace before the next annual fee hits.';
+  if (t === 'PreBonus') return 'Complete the required spend before the deadline to secure the bonus.';
+  if (t === 'FeeDue') return 'Decide to keep or cancel before the fee posts.';
+  if (t === 'DataStale') return 'Confirm your spend and fee data to ensure accuracy.';
+  if (t === 'MarketWindow') return 'Review upgrade/downgrade options on your existing cards.';
+  return 'Review this item and take the best next step.';
+}
+
 function _firstItemToFocus_(item) {
-  var out = { type: item.type || '', cardName: item.cardName || '', title: '', status: '', action: '', impactUsd: 0 };
+  var out = { type: item.type || '', cardName: item.cardName || '', title: '', status: '', action: '', impactUsd: null };
   if (item.type === 'BLEEDING' && item.structure) {
     var s = item.structure;
     var loss = Math.max(0, Math.round((s.annualFee || 0) - (s.estValue || 0)));
     out.cardName = s.cardName || out.cardName;
     out.title = out.cardName + ' - This card is losing money';
-    out.status = 'Estimated annual loss is $' + _fmtNum(loss) + ' based on current inputs.';
+    out.status = loss > 0 ? ('Estimated annual loss is $' + _fmtNum(loss) + ' based on current inputs.') : 'Potential upside';
     out.action = s.downgradeOption ? 'Prioritize downgrade/product change before cancellation.' : 'Cancel or replace before the annual fee posts.';
-    out.impactUsd = loss;
+    out.impactUsd = loss > 0 ? loss : null;
   } else if (item.type === 'BONUS_NOT_COLLECTED') {
     out.title = out.cardName + ' - Bonus not yet confirmed';
     out.status = 'This card appears to be in the welcome bonus period and completion is not confirmed.';
@@ -157,12 +187,15 @@ function _firstItemToFocus_(item) {
     out.title = out.cardName + ' - Keep as is';
     out.status = 'Current net value is positive.';
     out.action = 'Keep and review monthly.';
-    out.impactUsd = Math.max(0, Math.round(item.structure.net || 0));
+    var efficientImpact = Math.round(item.structure.net || 0);
+    out.impactUsd = efficientImpact > 0 ? efficientImpact : null;
   } else {
     out.title = (out.cardName || 'Card') + ' - ' + (out.type || 'Item');
     out.status = 'Review needed.';
-    out.action = 'Check report details.';
+    out.action = _defaultActionByIssueType_(out.type);
   }
+  if (out.impactUsd != null && Number(out.impactUsd) <= 0) out.impactUsd = null;
+  if (!out.action || /check report details/i.test(String(out.action))) out.action = _defaultActionByIssueType_(out.type);
   return out;
 }
 
@@ -204,11 +237,11 @@ function _buildFirstModel_(decisionPlan, topPromos, activePromoCount) {
 }
 
 function _buildMonthlyModelItems_(events, catalogMap) {
-  var displayTypes = ['Bleeding', 'PreBonus', 'FeeDue', 'annual_fee_due', 'DataStale', 'DataAnomaly'];
-  var filtered = (events || []).filter(function(e) { return displayTypes.indexOf(e.event_type) >= 0; });
+  var displayTypes = ['Bleeding', 'PreBonus', 'FeeDue', 'DataStale', 'DataAnomaly'];
+  var filtered = (events || []).filter(function(e) { return displayTypes.indexOf(normalizeEventType_(e.event_type)) >= 0; });
   filtered.sort(function(a, b) {
-    var pa = MONTHLY_EVENT_PRIORITY[a.event_type] || 99;
-    var pb = MONTHLY_EVENT_PRIORITY[b.event_type] || 99;
+    var pa = MONTHLY_EVENT_PRIORITY[normalizeEventType_(a.event_type)] || 99;
+    var pb = MONTHLY_EVENT_PRIORITY[normalizeEventType_(b.event_type)] || 99;
     return pa - pb;
   });
   var top = filtered.slice(0, 5);
@@ -217,7 +250,7 @@ function _buildMonthlyModelItems_(events, catalogMap) {
     var e = top[i];
     var name = e.card_name || e.card_id || 'Card';
     var data = _parseEventJson(e.current_value_json);
-    var issueType = e.event_type || '';
+    var issueType = normalizeEventType_(e.event_type || '');
     var status = '';
     var action = '';
     var impactUsd = null;
@@ -226,19 +259,20 @@ function _buildMonthlyModelItems_(events, catalogMap) {
       if (data.net != null) loss = Math.abs(parseFloat(data.net));
       else if (data.annual_fee != null && data.est_value != null) loss = Math.abs(parseFloat(data.annual_fee) - parseFloat(data.est_value));
       impactUsd = isNaN(loss) ? null : Math.round(loss);
-      status = 'Estimated annual loss is about $' + _fmtNum(impactUsd || 0) + ' based on current inputs.';
+      if (impactUsd != null && impactUsd <= 0) impactUsd = null;
+      status = impactUsd != null ? ('Estimated annual loss is about $' + _fmtNum(impactUsd) + ' based on current inputs.') : 'Potential upside';
       action = _downgradeOptionFromCatalog(catalogMap, name)
         ? 'Prioritize downgrade/product change before cancellation.'
         : 'Cancel or replace before the annual fee posts.';
     } else if (issueType === 'PreBonus') {
       status = 'Bonus completion is not confirmed.';
       action = 'Complete required spend and confirm bonus status.';
-    } else if (issueType === 'FeeDue' || issueType === 'annual_fee_due') {
+    } else if (issueType === 'FeeDue') {
       var days = data.days_until != null ? parseInt(data.days_until, 10) : _daysUntilFeeDue(data.fee_due_month);
       if (days == null || isNaN(days)) days = 30;
       var feeAmt = data.annual_fee != null ? Number(data.annual_fee) : NaN;
       var feeMonth = data.fee_due_month ? String(data.fee_due_month) : '';
-      status = 'Annual renewal approaching (' + (isNaN(feeAmt) ? '$0' : '$' + _fmtNum(Math.round(feeAmt))) + ' due in ' + (feeMonth || 'upcoming cycle') + '). Review before renewal to confirm net value still justifies the fee.';
+      status = 'Annual renewal approaching (' + (isNaN(feeAmt) ? 'amount not provided' : ('$' + _fmtNum(Math.round(feeAmt)) + ' due in ' + (feeMonth || 'upcoming cycle'))) + '). Review before renewal to confirm net value still justifies the fee.';
       action = 'Review before renewal: cancel/downgrade only if benefits don\'t justify the fee.';
     } else if (issueType === 'DataStale') {
       status = 'Data was not confirmed this month.';
@@ -249,25 +283,23 @@ function _buildMonthlyModelItems_(events, catalogMap) {
     }
     items.push({
       cardName: name,
-      issueType: (issueType === 'FeeDue' ? 'annual_fee_due' : issueType),
+      issueType: issueType,
       issueTitle: issueType === 'Bleeding' ? 'This card is losing money'
         : issueType === 'PreBonus' ? 'Bonus not yet confirmed'
-        : (issueType === 'FeeDue' || issueType === 'annual_fee_due') ? 'Annual renewal approaching'
+        : issueType === 'FeeDue' ? 'Annual renewal approaching'
         : issueType === 'DataStale' ? 'Data not confirmed'
         : issueType === 'DataAnomaly' ? 'Large change detected'
         : 'Item to review',
       status: status,
-      action: action,
-      impactUsd: impactUsd
+      action: action || _defaultActionByIssueType_(issueType),
+      impactUsd: (impactUsd != null && Number(impactUsd) > 0) ? impactUsd : null
     });
   }
   return items;
 }
 
 function _normalizeMonthlyIssueType_(typeRaw) {
-  var t = String(typeRaw || '').toLowerCase();
-  if (t === 'feedue' || t === 'annual_fee_due') return 'annual_fee_due';
-  return t;
+  return String(normalizeEventType_(typeRaw) || '').toLowerCase();
 }
 
 function _buildMonthlySummaryLineFromItems_(items, activeCardCount) {
@@ -283,7 +315,7 @@ function _buildMonthlySummaryLineFromItems_(items, activeCardCount) {
   var parts = [];
   if (flags.bleeding) parts.push('bleeding card');
   if (flags.prebonus) parts.push('bonus not yet confirmed');
-  if (flags.annual_fee_due) parts.push('annual renewal approaching');
+  if (flags.feedue) parts.push('annual renewal approaching');
   if (flags.datastale) parts.push('data not confirmed');
   if (flags.dataanomaly) parts.push('large change detected');
   return 'This month: ' + items.length + ' item(s) need attention' + (parts.length ? ' - ' + parts.slice(0, 2).join(' + ') + '.' : '.');
@@ -362,6 +394,9 @@ function runFirstReport(ss) {
   firstModel.totalPotentialThisYear = totalPotentialThisYear;
   firstModel.bonusLifecycleRows = bonusLifecycleRows;
   firstModel.reportMonth = reportMonth;
+  firstModel.structureResults = structureResults;
+  firstModel.lifecycleResults = lifecycleResults;
+  firstModel.cardsNormalized = cardsNormalized;
 
   if (_isDevMode_() && reportSheet) {
     reportSheet.getRange(FIRST_START_ROW, 1, MONTHLY_START_ROW - FIRST_START_ROW, 8).clearContent().clearFormat();
@@ -524,7 +559,7 @@ function writeReportFirst_(sheet, decisionPlan, topPromos, activePromoCount) {
   }
 }
 
-var MONTHLY_EVENT_PRIORITY = { Bleeding: 1, PreBonus: 2, FeeDue: 3, annual_fee_due: 3, DataStale: 4, DataAnomaly: 5 };
+var MONTHLY_EVENT_PRIORITY = { Bleeding: 1, PreBonus: 2, FeeDue: 3, DataStale: 4, DataAnomaly: 5 };
 
 function _parseEventJson(str) {
   if (!str || String(str).trim() === '') return {};
@@ -559,10 +594,10 @@ function _downgradeOptionFromCatalog(catalogMap, cardName) {
 function _shortSummaryPhrases(top5) {
   var set = {};
   for (var i = 0; i < top5.length; i++) {
-    var t = top5[i].event_type;
+    var t = normalizeEventType_(top5[i].event_type);
     if (t === 'Bleeding') set.bleeding = true;
     else if (t === 'PreBonus') set.prebonus = true;
-    else if (t === 'FeeDue' || t === 'annual_fee_due') set.feedue = true;
+    else if (t === 'FeeDue') set.feedue = true;
     else if (t === 'DataStale') set.datastale = true;
     else if (t === 'DataAnomaly') set.anomaly = true;
   }
@@ -579,10 +614,11 @@ function _shortSummaryPhrases(top5) {
  * Monthly v1.1: render 4-block structure (template wording only). No logic changes.
  */
 function renderMonthlyV1(reportMonth, eventsForMonth, currentMetrics, catalogMap, topPromos) {
-  var displayTypes = ['Bleeding', 'PreBonus', 'FeeDue', 'annual_fee_due', 'DataStale', 'DataAnomaly'];
+  var displayTypes = ['Bleeding', 'PreBonus', 'FeeDue', 'DataStale', 'DataAnomaly'];
   var filtered = (eventsForMonth || []).filter(function(e) {
-    if (displayTypes.indexOf(e.event_type) < 0) return false;
-    if (e.event_type === 'Bleeding') {
+    var et = normalizeEventType_(e.event_type);
+    if (displayTypes.indexOf(et) < 0) return false;
+    if (et === 'Bleeding') {
       var data = _parseEventJson(e.current_value_json);
       var net = data.net != null ? parseFloat(data.net) : (data.annual_fee != null && data.est_value != null ? parseFloat(data.annual_fee) - parseFloat(data.est_value) : 0);
       return Math.abs(net) >= DECISION_CONFIG.BLEEDING_MIN_LOSS;
@@ -590,8 +626,8 @@ function renderMonthlyV1(reportMonth, eventsForMonth, currentMetrics, catalogMap
     return true;
   });
   filtered.sort(function(a, b) {
-    var pa = MONTHLY_EVENT_PRIORITY[a.event_type] || 99;
-    var pb = MONTHLY_EVENT_PRIORITY[b.event_type] || 99;
+    var pa = MONTHLY_EVENT_PRIORITY[normalizeEventType_(a.event_type)] || 99;
+    var pb = MONTHLY_EVENT_PRIORITY[normalizeEventType_(b.event_type)] || 99;
     return pa - pb;
   });
   var top5 = filtered.slice(0, 5);
@@ -606,37 +642,39 @@ function renderMonthlyV1(reportMonth, eventsForMonth, currentMetrics, catalogMap
     var title = '';
     var status = '';
     var action = '';
-    if (e.event_type === 'Bleeding') {
+    var eventType = normalizeEventType_(e.event_type);
+    if (eventType === 'Bleeding') {
       var data = _parseEventJson(e.current_value_json);
       var loss = 0;
       if (data.net != null) loss = Math.abs(parseFloat(data.net));
       else if (data.annual_fee != null && data.est_value != null) loss = Math.abs(parseFloat(data.annual_fee) - parseFloat(data.est_value));
       title = name + ' — 这张卡在亏钱';
-      status = '按当前用法估算，一年大约白亏 $' + _fmtNum(Math.round(loss)) + '（扣完年费后）。';
+      var roundedLoss = Math.round(loss);
+      status = roundedLoss > 0 ? ('按当前用法估算，一年大约白亏 $' + _fmtNum(roundedLoss) + '（扣完年费后）。') : 'Potential upside';
       action = _downgradeOptionFromCatalog(catalogMap, name)
         ? '建议优先联系银行做降级/转换为低年费版本；不行再考虑取消或替换。'
         : '建议在年费扣款前取消或替换此卡。';
-    } else if (e.event_type === 'PreBonus') {
+    } else if (eventType === 'PreBonus') {
       title = name + ' — 奖励还没确认拿到';
       status = '这张卡仍在奖励获取阶段，您尚未确认已完成奖励条件。';
       action = '建议优先完成达标消费；完成后把 Card Assets 里 Bonus Collected 改为 Yes。';
-    } else if (e.event_type === 'FeeDue' || e.event_type === 'annual_fee_due') {
+    } else if (eventType === 'FeeDue') {
       var data = _parseEventJson(e.current_value_json);
       var days = data.days_until != null ? parseInt(data.days_until, 10) : _daysUntilFeeDue(data.fee_due_month);
       if (days == null || isNaN(days)) days = 30;
       title = name + ' — 年费即将扣款';
       status = '年费预计在约 ' + days + ' 天后扣除。';
       action = '建议提前评估是否继续保留；若不留请在扣款前处理降级/取消。';
-    } else if (e.event_type === 'DataStale') {
+    } else if (eventType === 'DataStale') {
       title = name + ' — 本月未确认数据';
       status = '本报告基于上月数据推算。';
       action = '请花 1 分钟点击「本月数据无变化/确认」按钮。';
-    } else if (e.event_type === 'DataAnomaly') {
+    } else if (eventType === 'DataAnomaly') {
       title = name + ' — 本月数据变化较大';
       status = '检测到年费或消费区间变动较大。';
       action = '建议先确认输入是否准确。';
     } else {
-      title = name + ' — ' + (e.event_type || '');
+      title = name + ' — ' + (eventType || '');
       status = '';
       action = '';
     }
@@ -818,6 +856,10 @@ function runMonthlyReport(ss) {
     currentFees: currentMetrics.currentFees,
     currentValue: currentMetrics.currentValue,
     bonusLifecycleRows: bonusLifecycleRows,
+    structureResults: structureResults,
+    lifecycleResults: lifecycleResults,
+    cardsNormalized: cardsNormalized,
+    snapshots: snapshots,
     generatedAt: now
   };
 }
@@ -837,7 +879,7 @@ function runAlertsCheck(ss) {
   var catalogMap = getCatalogMap(ss);
   var alertsRows = computeAlertsRows(cards, catalogMap);
   var reportSheet = _getSheetByName(ss, SHEET_REPORTS);
-  if (!reportSheet) throw new Error('Sheet "Reports" not found');
+  if (!reportSheet) throw new Error('Sheet "' + String(SHEET_REPORTS || 'Debug') + '" not found');
   reportSheet.getRange(ALERTS_HEADER_ROW, 1, 1, 8).clearContent();
   reportSheet.getRange(ALERTS_HEADER_ROW, 1).setValue('C) Alerts Table 底部提醒表');
   writeAlertsTable(reportSheet, alertsRows);

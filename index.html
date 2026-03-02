@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lumina Business Card</title>
+    <style>
+      :root {
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --text: #111827;
+        --muted: #6b7280;
+        --primary: #111827;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: linear-gradient(180deg, #f9fafb 0%, var(--bg) 100%);
+        color: var(--text);
+      }
+      .wrap {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .card {
+        width: min(760px, 100%);
+        background: var(--card);
+        border-radius: 16px;
+        padding: 28px;
+        box-shadow: 0 12px 30px rgba(17, 24, 39, 0.08);
+      }
+      h1 { margin: 0 0 8px; font-size: 30px; }
+      p { margin: 0; color: var(--muted); line-height: 1.5; }
+      .actions {
+        margin-top: 22px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .primary { background: var(--primary); color: #fff; }
+      .ghost { background: #eef2f7; color: #111827; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <main class="card">
+        <h1>Lumina Business Card</h1>
+        <p>原版入口已恢复。可以直接测试生成报表。</p>
+        <div class="actions">
+          <button class="primary" onclick="runFirst()">Generate First</button>
+          <button class="primary" onclick="runMonthly()">Generate Monthly</button>
+          <button class="ghost" onclick="runFirstLegacy()">Legacy First PDF</button>
+          <button class="ghost" onclick="runMonthlyLegacy()">Legacy Monthly PDF</button>
+          <button class="ghost" onclick="goBeautiful()">打开漂亮报告版</button>
+          <button class="ghost" onclick="reloadPage()">刷新入口</button>
+        </div>
+        <p id="status" style="margin-top:14px;">状态：待命</p>
+      </main>
+    </div>
+
+    <script>
+      function setStatus(text) {
+        document.getElementById("status").textContent = "状态：" + text;
+      }
+
+      function runFirst() {
+        setStatus("正在进入 Beautiful First...");
+        var base = window.location.href.split("?")[0];
+        window.location.href = base + "?view=beautiful&type=FIRST&autorun=1";
+      }
+
+      function runMonthly() {
+        setStatus("正在进入 Beautiful Monthly...");
+        var base = window.location.href.split("?")[0];
+        window.location.href = base + "?view=beautiful&type=MONTHLY&autorun=1";
+      }
+
+      function openPdfByAnchor(url) {
+        var href = String(url || "");
+        if (!href) return;
+        var a = document.createElement("a");
+        a.href = href;
+        a.target = "_blank";
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      function runFirstLegacy() {
+        setStatus("正在生成 Legacy First PDF...");
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res && res.ok) {
+              setStatus("Legacy First 已生成。");
+              if (res.fileUrl) openPdfByAnchor(res.fileUrl);
+            } else {
+              setStatus("Legacy First 失败: " + (res && res.message ? res.message : "unknown error"));
+            }
+          })
+          .withFailureHandler(function (err) {
+            setStatus("Legacy First 失败: " + (err && err.message ? err.message : err));
+          })
+          .generateFirstLegacyPdfForWeb();
+      }
+
+      function runMonthlyLegacy() {
+        setStatus("正在生成 Legacy Monthly PDF...");
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res && res.ok) {
+              setStatus("Legacy Monthly 已生成。");
+              if (res.fileUrl) openPdfByAnchor(res.fileUrl);
+            } else {
+              setStatus("Legacy Monthly 失败: " + (res && res.message ? res.message : "unknown error"));
+            }
+          })
+          .withFailureHandler(function (err) {
+            setStatus("Legacy Monthly 失败: " + (err && err.message ? err.message : err));
+          })
+          .generateMonthlyLegacyPdfForWeb();
+      }
+
+      function goBeautiful() {
+        var base = window.location.href.split("?")[0];
+        window.location.href = base + "?view=beautiful&type=FIRST";
+      }
+      function reloadPage() {
+        window.location.href = window.location.href.split("?")[0];
+      }
+    </script>
+  </body>
+</html>

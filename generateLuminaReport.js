@@ -18,28 +18,28 @@ const reportData = {
       name: "Amex Business Platinum",
       level: "LOW",
       desc: "Review needed",
-      todo: "Check report details.",
+      todo: "Review this item and take the best next step.",
       loss: ""
     },
     {
       name: "Capital One Venture X Business",
       level: "LOW",
       desc: "Review needed",
-      todo: "Check report details.",
+      todo: "Review this item and take the best next step.",
       loss: ""
     },
     {
       name: "Chase Ink Business Preferred",
       level: "LOW",
       desc: "Review needed",
-      todo: "Check report details.",
+      todo: "Review this item and take the best next step.",
       loss: ""
     },
     {
       name: "Chase Ink Business Unlimited",
       level: "LOW",
       desc: "Review needed",
-      todo: "Check report details.",
+      todo: "Review this item and take the best next step.",
       loss: ""
     }
   ]

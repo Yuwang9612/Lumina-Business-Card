@@ -2,22 +2,60 @@
  * @file main.gs
  */
 
-function doGet(e) {
+function doGetLegacy_(e) {
   return HtmlService.createHtmlOutputFromFile('index').setTitle('Lumina Business Card');
 }
 
 function onOpen() {
-  SpreadsheetApp.getUi()
+  var menu = SpreadsheetApp.getUi()
     .createMenu('Card Profit Watch')
-    .addItem('Generate First Wake-up Report', 'generateFirstReport')
-    .addItem('Generate Monthly Health Report', 'generateMonthlyReport')
-    .addItem('Run Alerts Check', 'runAlertsCheck')
-    .addSeparator()
-    .addItem('Admin: Setup Dev/Test View', 'setupDevTestView')
-    .addItem('Admin: Setup Customer View', 'setupCustomerView')
-    .addSeparator()
-    .addItem('Confirm No Change (All Active Cards)', 'confirmNoChange')
-    .addToUi();
+    .addItem('Generate First Wake Up Report', 'generateFirstReport')
+    .addItem('Generate Monthly Health Check Report', 'generateMonthlyReport');
+
+  if (isAdminUser_()) {
+    menu.addSeparator()
+      .addItem('Set Admin View', 'setupAdminView')
+      .addItem('Set Customer View', 'setupCustomerView')
+      .addItem('Admin: Migrate Core Sheets To Production', 'migrateCoreSheetsToProduction');
+  }
+  menu.addToUi();
+}
+
+function isAdminUser_() {
+  var me = '';
+  try { me = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase(); } catch (e) {}
+  if (!me) return false;
+  var raw = '';
+  try { raw = String(PropertiesService.getScriptProperties().getProperty('ADMIN_EMAILS') || '').trim(); } catch (e2) {}
+  if (!raw) return false;
+  var admins = raw.split(',').map(function(x){ return String(x || '').trim().toLowerCase(); }).filter(function(x){ return !!x; });
+  return admins.indexOf(me) >= 0;
+}
+
+function openBeautiful_(type) {
+  var t = String(type || 'FIRST').toUpperCase() === 'MONTHLY' ? 'MONTHLY' : 'FIRST';
+  // Render UI directly inside Sheets dialog to avoid broken external URL routing.
+  var tmpl = HtmlService.createTemplateFromFile('BeautifulReportUI');
+  tmpl.initialType = t;
+  tmpl.initialAutoRun = '1';
+  tmpl.buildInfo = 'dialog-' + new Date().toISOString();
+  SpreadsheetApp.getUi().showModalDialog(
+    tmpl.evaluate().setWidth(1100).setHeight(700),
+    'Credit Card Health Check Report'
+  );
+}
+
+function normalizeWebAppExecUrl_(url) {
+  var u = String(url || '').trim();
+  if (!u) return '';
+  if (u.indexOf('drive.google.com') >= 0) return '';
+  if (u.indexOf('script.google.com/macros/s/') === -1) return '';
+  if (u.indexOf('/dev') > -1) u = u.replace('/dev', '/exec');
+  if (u.indexOf('/exec') === -1 && u.indexOf('/macros/s/') > -1) {
+    if (u.lastIndexOf('/') !== u.length - 1) u += '/';
+    u += 'exec';
+  }
+  return u;
 }
 
 function openPdfDialog_(url) {
@@ -29,74 +67,24 @@ function openPdfDialog_(url) {
 }
 
 function generateFirstReport() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  Logger.log(
-    '[RUN] action=GenerateFirstWakeupReport ts=%s DATA_ENV=%s REPORT_MONTH_OVERRIDE=%s',
-    new Date(),
-    String((DECISION_CONFIG && DECISION_CONFIG.DATA_ENV) || ''),
-    String((DECISION_CONFIG && DECISION_CONFIG.REPORT_MONTH_OVERRIDE) || '')
-  );
-  var reportsSheet = _getSheetByName(ss, 'Reports');
-  try {
-    if (reportsSheet) {
-      reportsSheet.getRange('B3').setValue('RUNNING');
-      reportsSheet.getRange('B4').clearContent();
-    }
-    var firstModel = runFirstReport(ss);
-    var pdfRes = generateFirstPdf(ss, firstModel);
-    if (reportsSheet && pdfRes && pdfRes.fileUrl) reportsSheet.getRange('B5').setValue('First PDF: ' + pdfRes.fileUrl);
-    if (pdfRes && pdfRes.fileUrl) openPdfDialog_(pdfRes.fileUrl);
-    if (reportsSheet) {
-      reportsSheet.getRange('B3').setValue('DONE');
-      reportsSheet.getRange('E1').setValue(new Date());
-      reportsSheet.getRange('E3').setValue('FIRST');
-    }
-  } catch (e) {
-    Logger.log(e);
-    if (reportsSheet) {
-      reportsSheet.getRange('B3').setValue('ERROR');
-      reportsSheet.getRange('B4').setValue('ERROR: First PDF export failed - ' + (e.message || String(e)));
-    }
-    SpreadsheetApp.getUi().alert('First report PDF failed: ' + (e.message || String(e)));
-  }
+  openBeautiful_('FIRST');
 }
 
 function generateMonthlyReport() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  Logger.log(
-    '[RUN] action=GenerateMonthlyHealthReport ts=%s DATA_ENV=%s REPORT_MONTH_OVERRIDE=%s',
-    new Date(),
-    String((DECISION_CONFIG && DECISION_CONFIG.DATA_ENV) || ''),
-    String((DECISION_CONFIG && DECISION_CONFIG.REPORT_MONTH_OVERRIDE) || '')
-  );
-  var reportsSheet = _getSheetByName(ss, 'Reports');
-  try {
-    if (reportsSheet) {
-      reportsSheet.getRange('B3').setValue('RUNNING');
-      reportsSheet.getRange('B4').clearContent();
-    }
-    var monthlyModel = runMonthlyReport(ss);
-    var pdfRes = generateMonthlyPdf(ss, monthlyModel);
-    if (reportsSheet && pdfRes && pdfRes.fileUrl) reportsSheet.getRange('B5').setValue('Monthly PDF: ' + pdfRes.fileUrl);
-    if (pdfRes && pdfRes.fileUrl) openPdfDialog_(pdfRes.fileUrl);
-    if (reportsSheet) {
-      reportsSheet.getRange('B3').setValue('DONE');
-      reportsSheet.getRange('E1').setValue(new Date());
-      reportsSheet.getRange('E3').setValue('MONTHLY');
-    }
-  } catch (e) {
-    Logger.log(e);
-    if (reportsSheet) {
-      reportsSheet.getRange('B3').setValue('ERROR');
-      reportsSheet.getRange('B4').setValue('ERROR: Monthly PDF export failed - ' + (e.message || String(e)));
-    }
-    SpreadsheetApp.getUi().alert('Monthly report PDF failed: ' + (e.message || String(e)));
-  }
+  openBeautiful_('MONTHLY');
+}
+
+function generateFirstReportLegacy_() {
+  openBeautiful_('FIRST');
+}
+
+function generateMonthlyReportLegacy_() {
+  openBeautiful_('MONTHLY');
 }
 
 function runAlertsCheck() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var reportsSheet = _getSheetByName(ss, 'Reports');
+  var reportsSheet = _getSheetByName(ss, SHEET_REPORTS || 'Debug');
   try {
     if (reportsSheet) {
       reportsSheet.getRange('B3').setValue('RUNNING');
@@ -112,7 +100,11 @@ function runAlertsCheck() {
     Logger.log(e);
     if (reportsSheet) {
       reportsSheet.getRange('B3').setValue('ERROR');
-      reportsSheet.getRange('B4').setValue(e.message || String(e));
+      reportsSheet.getRange('B4').setValue(
+        'Error while running Alerts check. '
+        + 'Please verify required tabs/headers (Company_Profile, Card_Assets, Card_Catalog, Promo_Catalog). '
+        + 'Details: ' + (e && e.message ? e.message : String(e))
+      );
     }
   }
 }

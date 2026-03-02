@@ -916,12 +916,12 @@ function generateEvents(ss, snapshots, prevSnapshots, marketSignals, catalogMap,
             events.push({
               card_id: snap.card_id,
               card_name: snap.card_name,
-              event_type: 'annual_fee_due',
+              event_type: 'FeeDue',
               severity: 'Medium',
               event_key: eventKey,
               current_value_json: JSON.stringify(feeJsonObj),
               prev_value_json: prevJson,
-              message_key: 'annual_fee_due'
+              message_key: 'feedue'
             });
           }
         }

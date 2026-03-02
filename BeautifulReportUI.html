@@ -1,0 +1,249 @@
+<!--
+验收：
+- 打开：
+  ?view=beautiful&type=FIRST&autorun=1
+  ?view=beautiful&type=MONTHLY&autorun=1
+- 第一屏必须看到：Current 12-month Net / Optimized 12-month Net / Unlock 三卡
+- 顶部默认只显示 Download PDF；debug=1 显示调试按钮与 Debug panel
+- Copy Email Body 可复制结构化纯文本
+-->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Credit Card Health Check Report</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+      :root { --bg:#f4f7fb; --surface:#fff; --text:#0f172a; --muted:#64748b; --line:#dbe3ef; --accent:#0f766e; --danger:#b91c1c; --ok:#166534; --shadow:0 8px 24px rgba(15,23,42,.06); }
+      * { box-sizing:border-box; } body { margin:0; background:radial-gradient(1200px 500px at 0% -10%, #dff7f2 0%, transparent 70%), var(--bg); color:var(--text); font-family:"Segoe UI", Roboto, Arial, sans-serif; }
+      .page { max-width:1080px; margin:0 auto; padding:16px; } .panel { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); padding:14px; margin-bottom:12px; }
+      .section-title { margin:0 0 10px; font-size:18px; } .header-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; } h1 { margin:0; font-size:28px; }
+      .meta { margin-top:8px; display:flex; gap:12px; flex-wrap:wrap; color:var(--muted); font-size:13px; } .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
+      .btn { border:1px solid var(--line); background:#fff; border-radius:8px; font-weight:600; font-size:13px; padding:8px 12px; cursor:pointer; } .btn.primary { background:#111827; color:#fff; border-color:#111827; } .btn:disabled { opacity:.6; cursor:not-allowed; }
+      .status { color:var(--muted); font-size:12px; margin-top:8px; } .hero-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; } .hero-card { border:1px solid var(--line); border-radius:10px; padding:12px; }
+      .hero-label { color:var(--muted); font-size:12px; } .hero-value { margin-top:6px; font-size:28px; font-weight:700; } .hero-sub { margin-top:4px; font-size:12px; color:var(--muted); } .pos { color:var(--ok); } .neg { color:var(--danger); }
+      .micro-kpis { margin-top:10px; display:flex; gap:14px; flex-wrap:wrap; font-size:13px; } .hero-message { margin-top:10px; color:#1e293b; font-size:14px; }
+      .hero-lines { margin-top:10px; font-size:14px; color:#0f172a; } .hero-lines .line2 { margin-top:4px; }
+      .list { display:grid; gap:10px; } .item { border:1px solid var(--line); border-radius:10px; padding:12px; } .item-top { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+      .pill { display:inline-block; border-radius:999px; padding:2px 8px; font-size:11px; border:1px solid #99f6e4; color:var(--accent); background:#f0fdfa; } .muted { color:var(--muted); } .row { margin-top:6px; font-size:13px; }
+      .status-badge { display:inline-block; border-radius:999px; padding:2px 8px; font-size:11px; border:1px solid var(--line); background:#f8fafc; color:#334155; }
+      .status-bleeding { border-color:#fecaca; background:#fef2f2; color:#991b1b; }
+      .status-prebonus { border-color:#fde68a; background:#fffbeb; color:#92400e; }
+      .status-ok { border-color:#bbf7d0; background:#f0fdf4; color:#166534; }
+      .compare-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+      .compare-card { border:1px solid var(--line); border-radius:10px; padding:12px; }
+      .compare-label { font-size:12px; color:var(--muted); }
+      .compare-value { margin-top:6px; font-size:24px; font-weight:700; }
+      .toggle { margin-top:10px; border:0; background:transparent; color:var(--accent); font-weight:700; cursor:pointer; } .totals { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:10px; font-size:13px; }
+      .table-wrap { overflow-x:visible; border:1px solid var(--line); border-radius:10px; } table { width:100%; min-width:0; table-layout:fixed; border-collapse:collapse; font-size:13px; } th,td { padding:10px; border-bottom:1px solid #eef2f7; text-align:left; overflow-wrap:anywhere; word-break:break-word; } th { background:#f8fafc; color:#334155; }
+      .num { text-align:right; font-variant-numeric:tabular-nums; } .link { color:var(--accent); text-decoration:none; font-weight:600; } .link:hover { text-decoration:underline; } .next-list { margin:0; padding-left:18px; } .next-list li { margin:6px 0; }
+      .no-scroll-table table { min-width:0; width:100%; table-layout:fixed; } .no-scroll-table th,.no-scroll-table td { white-space:normal; word-break:break-word; }
+      .skeleton { height:56px; border-radius:10px; background:linear-gradient(90deg,#eef2f7 25%,#f8fafc 50%,#eef2f7 75%); background-size:200% 100%; animation:sh 1.2s infinite; border:1px solid #e5e7eb; }
+      @keyframes sh { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
+      #debug { display:none; } .debug-on #debug { display:block; } #debug details summary { cursor:pointer; color:var(--muted); font-size:12px; } #debugText { margin-top:8px; white-space:pre-wrap; font-size:12px; color:#334155; }
+      @media (max-width:860px){ .hero-grid{ grid-template-columns:1fr; } }
+    </style>
+  </head>
+  <body>
+    <div class="page" id="reportRoot">
+      <section class="panel">
+        <div class="header-row">
+          <div>
+            <h1 id="clientName">Lumina Logic LLC</h1>
+            <div class="meta"><span>Type: <strong id="reportTypeLabel">FIRST</strong></span><span>Generated: <strong id="generatedAt">-</strong></span></div>
+          </div>
+          <div>
+            <div class="toolbar"><button id="downloadBtn" class="btn">Download PDF</button></div>
+            <div id="statusText" class="status">Ready</div>
+          </div>
+        </div>
+      </section>
+      <section class="panel" id="heroSection"></section>
+      <section class="panel" id="monthlyBannerSection"></section>
+      <section class="panel" id="outlookSection"></section>
+      <section class="panel" id="portfolioSnapshotSection"></section>
+      <section class="panel" id="cardHealthSection"></section>
+      <section class="panel" id="itemsSection"></section>
+      <section class="panel" id="portfolioSection"></section>
+      <section class="panel" id="promotionsSection"></section>
+      <section class="panel" id="compareStripSection"></section>
+      <section class="panel" id="nextActionsSection"></section>
+      <section class="panel" id="footerSection"></section>
+      <section id="debug" class="panel"><details><summary>Debug panel</summary><pre id="debugText"></pre></details></section>
+    </div>
+    <script>
+      var CURRENT_REPORT_TYPE = "<?= (typeof initialType !== 'undefined' ? initialType : 'FIRST') ?>";
+      var INITIAL_AUTO_RUN = "<?= (typeof initialAutoRun !== 'undefined' ? initialAutoRun : '0') ?>";
+      var BUILD_INFO = "<?= (typeof buildInfo !== 'undefined' ? buildInfo : 'unknown-build') ?>";
+      var LAST_RENDERED_DATA = null, LAST_RESPONSE_META = "none", ITEMS_EXPANDED = false, PROMOTIONS_EXPANDED = false, CURRENT_SETUP_EXPANDED = false;
+      var params = new URLSearchParams(window.location.search || ""); var isDebug = params.get("debug") === "1";
+      var FALLBACK_REPORT_DATA = { client_name:"", report_type:"FIRST", generated_at:"", kpis:{ recurring_net:0, recurring_fees:0, recurring_value:0, optimized_net:null, unlock:null }, scenario_comparison:{ do_nothing:{ annual_fee:null, spend_rewards:null, unlock_bonus:null, net_12m:null }, act:{ annual_fee:null, spend_rewards:null, unlock_bonus:null, net_12m:null } }, actions:[], promotions:[], portfolio:{ cards:[], totals:{ annual_fees:0, value:0, net:0 } } };
+      function safeText(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+      function formatUsd(n){ var x=Number(n); if(isNaN(x)) x=0; var a=Math.round(Math.abs(x)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,","); return x<0?"-$"+a:"$"+a; }
+      function formatUsdOrDash(n){ if(n==null||n==="") return "—"; var x=Number(n); if(isNaN(x)) return "—"; return formatUsd(x); }
+      function sortByNetAsc(cards){ return (Array.isArray(cards)?cards.slice():[]).sort(function(a,b){ var an=Number(a&&a.net); if(isNaN(an)) an=0; var bn=Number(b&&b.net); if(isNaN(bn)) bn=0; return an-bn; }); }
+      function topN(cards,n){ return (Array.isArray(cards)?cards:[]).slice(0,Math.max(0,Number(n)||0)); }
+      function issuerFromPromotionOrCard(promo){ var p=promo||{}, issuer=(p.issuer==null?"":String(p.issuer)).trim(), name=String(p.card_name||""); if(issuer) return issuer; if(/Amex/i.test(name)) return "American Express"; if(/Chase/i.test(name)) return "Chase"; if(/Capital One/i.test(name)) return "Capital One"; return "Issuer"; }
+      function computeCardStatus(card){ var c=card||{}; if(c.is_prebonus===true) return "Pre-Bonus"; if(c.is_bleeding===true) return "Bleeding"; if(typeof c.net==="number"&&c.net<0) return "Bleeding"; if(c.status) return String(c.status); return "OK"; }
+      function statusExplanation(status){ var s=String(status||""); if(s==="Bleeding") return "This card is costing you money every year. You\u2019re paying more in fees than you\u2019re getting back."; if(s==="Pre-Bonus") return "You\u2019re in a bonus window \u2014 if you don\u2019t complete the spend, the value disappears."; if(s==="Review") return "Something may be off. Ignoring this could quietly reduce your return."; if(s==="OK") return "This card is pulling its weight. No immediate changes needed."; return "Something may be off. Ignoring this could quietly reduce your return."; }
+      function actionLabel(issueType){ var t=String(issueType||"").toUpperCase(); if(t==="BLEEDING") return "Stop the loss"; if(t==="PREBONUS") return "Finish your bonus"; if(t==="FEE_DUE") return "Fee is coming"; if(t==="MARKET_WINDOW") return "Better option (review)"; if(t==="DATA_STALE") return "Confirm your data"; return "Action"; }
+      function actionFallback(issueType){ var t=String(issueType||"").toUpperCase(); if(t==="MARKET_WINDOW") return "Review upgrade/downgrade options on your existing cards."; if(t==="DATA_STALE") return "Confirm your spend and fee data for accuracy."; if(t==="FEE_DUE") return "Decide to keep/cancel before the fee posts."; if(t==="PREBONUS") return "Complete the required spend before the deadline."; if(t==="BLEEDING") return "Cancel, downgrade, or replace before the next annual fee hits."; return "Review this item and take the best next step."; }
+      function resolvedActionText(a){ var raw=(a&&a.action!=null)?String(a.action):""; if(!raw.trim()||/check report details/i.test(raw)) return actionFallback(a&&a.issue_type); return raw; }
+      function formatImpact(impact_usd){ var x=Number(impact_usd); if(!isNaN(x)&&x>0) return "Saves about "+formatUsd(x)+" per year"; return "Potential upside"; }
+      function statusBadgeClass(status){ var s=String(status||""); if(s==="Bleeding") return "status-badge status-bleeding"; if(s==="Pre-Bonus") return "status-badge status-prebonus"; if(s==="OK") return "status-badge status-ok"; return "status-badge"; }
+      function formatIso(iso){ var d=new Date(iso||""); if(isNaN(d.getTime())) return "-"; return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
+      function setStatus(t){ var n=document.getElementById("statusText"); if(n) n.textContent=t||"Ready"; renderDebug(LAST_RENDERED_DATA); }
+      function setLoading(id,l,a,b){ var btn=document.getElementById(id); if(!btn) return; btn.disabled=!!l; if(a&&b) btn.textContent=l?a:b; }
+      function showDebug(m,e){ var d=e?(e.stack?String(e.stack):(e.message?String(e.message):String(e))):""; LAST_RESPONSE_META="error: "+String(m||"unknown")+(d?(" | "+d):""); renderDebug(LAST_RENDERED_DATA); }
+      function reportTypeLabel(t){ return String(t||"FIRST").toUpperCase()==="MONTHLY"?"MONTHLY":"FIRST"; }
+      function cacheKey(type){ return "beautiful_report_cache_v1_" + reportTypeLabel(type); }
+      function readCachedDto(type){ try { var raw=sessionStorage.getItem(cacheKey(type)); if(!raw) return null; return normalizeDto(JSON.parse(raw)); } catch(e){ return null; } }
+      function writeCachedDto(dto){ try { sessionStorage.setItem(cacheKey(dto.report_type), JSON.stringify(dto)); } catch(e){} }
+      function normalizeDto(raw){ var d=raw||{}, k=d.kpis||{}, p=d.portfolio||{}, t=p.totals||{}, s=d.scenario_comparison||{}, dn=s.do_nothing||{}, ac=s.act||{}, a=Array.isArray(d.actions)?d.actions.slice():[]; a.sort(function(x,y){ var xp=Number(x&&x.priority); if(isNaN(xp)) xp=999; var yp=Number(y&&y.priority); if(isNaN(yp)) yp=999; return xp-yp; }); function nOrNull(v){ if(v==null||v==="") return null; var n=Number(v); return isNaN(n)?null:n; } return { client_name:d.client_name||"Lumina Logic LLC", report_type:reportTypeLabel(d.report_type), generated_at:d.generated_at||"", kpis:{ recurring_net:Number(k.recurring_net)||0, recurring_fees:Number(k.recurring_fees)||0, recurring_value:Number(k.recurring_value)||0, optimized_net:(k.optimized_net==null?null:(Number(k.optimized_net)||0)), unlock:(k.unlock==null?null:(Number(k.unlock)||0)) }, scenario_comparison:{ do_nothing:{ annual_fee:nOrNull(dn.annual_fee), spend_rewards:nOrNull(dn.spend_rewards), unlock_bonus:nOrNull(dn.unlock_bonus), net_12m:nOrNull(dn.net_12m) }, act:{ annual_fee:nOrNull(ac.annual_fee), spend_rewards:nOrNull(ac.spend_rewards), unlock_bonus:nOrNull(ac.unlock_bonus), net_12m:nOrNull(ac.net_12m) } }, actions:a, promotions:Array.isArray(d.promotions)?d.promotions.slice():[], portfolio:{ cards:Array.isArray(p.cards)?p.cards.slice():[], totals:{ annual_fees:Number(t.annual_fees)||0, value:Number(t.value)||0, net:Number(t.net)||0 } } }; }
+      function applyToolbarMode(){ if(isDebug) document.body.classList.add("debug-on"); ["runFirstBtn","runMonthlyBtn","reloadBeautifulBtn"].forEach(function(id){ if(!isDebug){ var n=document.getElementById(id); if(n) n.style.display="none"; } }); }
+      function renderHeader(dto){ document.getElementById("clientName").textContent=dto.client_name; document.getElementById("reportTypeLabel").textContent=dto.report_type; document.getElementById("generatedAt").textContent=formatIso(dto.generated_at); }
+      function renderKpiCards(dto,title){ var sub=dto.kpis.optimized_net==null?'<div class="hero-sub">Not available yet</div>':''; return '<h2 class="section-title">'+safeText(title)+'</h2><div class="hero-grid"><article class="hero-card"><div class="hero-label">Keep current (12-month net)</div><div class="hero-value '+(dto.kpis.recurring_net<0?'neg':'pos')+'">'+safeText(formatUsd(dto.kpis.recurring_net))+'</div></article><article class="hero-card"><div class="hero-label">After fixes (12-month net)</div><div class="hero-value">'+safeText(formatUsdOrDash(dto.kpis.optimized_net))+'</div>'+sub+'</article><article class="hero-card"><div class="hero-label">Unlock (12-month delta)</div><div class="hero-value '+((dto.kpis.unlock||0)>0?'pos':'')+'">'+safeText(formatUsdOrDash(dto.kpis.unlock))+'</div></article></div>'; }
+      function renderHero(dto){ var fees=formatUsd(dto.kpis.recurring_fees), value=formatUsd(dto.kpis.recurring_value), net=formatUsd(dto.kpis.recurring_net), unlock=Number(dto.kpis.unlock); var line1='Right now you pay '+fees+' in fees to get only '+value+' back \u2014 that\u2019s '+net+' over the next 12 months.'; var line2=''; if(!isNaN(unlock)&&unlock>0) line2='Fixing the top items below can unlock about '+formatUsd(unlock)+'.'; else if(dto.report_type==="FIRST") line2='Focus on the top items below to protect your value in the next 12 months.'; if(dto.report_type!=="FIRST"){ var msg=''; if(dto.kpis.recurring_net<0) msg="Right now you're paying fees to lose money. The top fixes below can reverse that over the next 12 months."; else if((dto.kpis.unlock||0)>0) msg="You're doing fine, but leaving money on the table. The top fixes below can unlock more value."; else msg="Your setup looks stable. Keep monitoring and act only when meaningful alerts appear."; document.getElementById("heroSection").innerHTML=renderKpiCards(dto,"Hero (12-month impact)")+'<div class="micro-kpis"><span>Annual Fees: <strong>'+safeText(formatUsd(dto.kpis.recurring_fees))+'</strong></span><span>Estimated Value: <strong>'+safeText(formatUsd(dto.kpis.recurring_value))+'</strong></span></div><div class="hero-message">'+safeText(msg)+'</div>'; return; } document.getElementById("heroSection").innerHTML=renderKpiCards(dto,"Hero (12-month impact)")+'<div class="hero-lines"><div class="line1">'+safeText(line1)+'</div>'+(line2?('<div class="line2">'+safeText(line2)+'</div>'):'')+'<div class="line2 muted">Small leaks compound. Over 3 years, this gap becomes meaningful.</div></div>'; }
+      function renderMonthlyStatusBanner(dto){ var n=document.getElementById("monthlyBannerSection"); if(dto.report_type!=="MONTHLY"){ n.style.display="none"; n.innerHTML=""; return; } n.style.display=""; n.innerHTML='<h2 class="section-title">Monthly Status Banner</h2><div class="row"><strong>This month: '+safeText(String(dto.actions.length))+' items need attention.</strong></div><div class="row muted">We only alert on loss, pending bonus, fee due, stale data.</div>'; }
+      function renderOutlook(dto){ var n=document.getElementById("outlookSection"); if(dto.report_type!=="MONTHLY"){ n.style.display="none"; n.innerHTML=""; return; } n.style.display=""; n.innerHTML=renderKpiCards(dto,"12-month Outlook"); }
+      function renderPortfolioSnapshot(dto){ var n=document.getElementById("portfolioSnapshotSection"); if(dto.report_type!=="FIRST"){ n.style.display="none"; n.innerHTML=""; return; } var t=dto.portfolio.totals; n.style.display=""; n.innerHTML='<h2 class="section-title">Portfolio Snapshot</h2><div class="totals"><span>Annual Fees: <strong>'+safeText(formatUsd(t.annual_fees||0))+'</strong></span><span>Estimated Value: <strong>'+safeText(formatUsd(t.value||0))+'</strong></span><span>Net: <strong>'+safeText(formatUsd(t.net||0))+'</strong></span></div><div class="row muted">Net = estimated value \u2212 annual fees (recurring only). One-time bonuses are shown under offers.</div>'; }
+      function renderCardHealth(dto){ var c=dto.portfolio.cards||[], rows=''; if(dto.report_type==="FIRST"){ if(!c.length) rows='<tr><td colspan="6" class="muted">No active cards found. Please check your Card_Assets status.</td></tr>'; else rows=c.map(function(x){ var st=computeCardStatus(x), exp=statusExplanation(st); return '<tr><td>'+safeText(x.card_name||'')+'</td><td><span class="'+safeText(statusBadgeClass(st))+'">'+safeText(st)+'</span></td><td class="num">'+safeText(formatUsd(x.annual_fee||0))+'</td><td class="num">'+safeText(formatUsd(x.est_value||0))+'</td><td class="num">'+safeText(formatUsd(x.net||0))+'</td><td>'+safeText(exp)+'</td></tr>'; }).join(''); document.getElementById("cardHealthSection").innerHTML='<h2 class="section-title">Card Health (table)</h2><div class="table-wrap"><table><thead><tr><th>Card</th><th>Status</th><th class="num">Annual Fee</th><th class="num">Est. Value</th><th class="num">Net</th><th>What it means</th></tr></thead><tbody>'+rows+'</tbody></table></div>'; return; } if(!c.length) rows='<tr><td colspan="6" class="muted">No active cards found. Please check your Card_Assets status.</td></tr>'; else rows=c.map(function(x){ return '<tr><td>'+safeText(x.card_name||'')+'</td><td>'+safeText(x.status||'-')+'</td><td class="num">'+safeText(formatUsd(x.annual_fee||0))+'</td><td class="num">'+safeText(formatUsd(x.est_value||0))+'</td><td class="num">'+safeText(formatUsd(x.net||0))+'</td><td>'+safeText(x.lifecycle_stage||'-')+'</td></tr>'; }).join(''); document.getElementById("cardHealthSection").innerHTML='<h2 class="section-title">Card Health (compact table)</h2><div class="table-wrap"><table><thead><tr><th>Card</th><th>Status</th><th class="num">Annual Fee</th><th class="num">Value</th><th class="num">Net</th><th>Lifecycle</th></tr></thead><tbody>'+rows+'</tbody></table></div>'; }
+      function renderItems(dto){ var l=Array.isArray(dto.actions)?dto.actions:[], v=ITEMS_EXPANDED?l:l.slice(0,3), b=''; if(!l.length) b="<div class=\"item muted\">No urgent actions. We'll keep monitoring.</div>"; else b='<div class="list">'+v.map(function(a){ var pr=(a.priority==null||a.priority==='')?'-':String(a.priority); var act=resolvedActionText(a); return '<article class="item"><div class="item-top"><span class="pill">P'+safeText(pr)+'</span><span class="muted">'+safeText(dto.report_type==="FIRST"?actionLabel(a.issue_type):(a.issue_type||''))+'</span></div><div class="row"><strong>'+safeText(a.card_name||'')+' - '+safeText(a.title||'')+'</strong></div><div class="row muted">'+safeText(a.status||'')+'</div><div class="row">Action: '+safeText(act)+'</div><div class="row">Impact: <strong>'+safeText(formatImpact(a.impact_usd))+'</strong></div></article>'; }).join('')+'</div>'; var tg=l.length>3?'<button id="itemsToggle" class="toggle">'+(ITEMS_EXPANDED?'Show fewer':('Show all ('+l.length+')'))+'</button>':''; var t=dto.report_type==="MONTHLY"?"This Month's Actions":"Priority Actions"; document.getElementById("itemsSection").innerHTML='<h2 class="section-title">'+safeText(t)+'</h2>'+b+tg; var n=document.getElementById("itemsToggle"); if(n) n.onclick=function(){ ITEMS_EXPANDED=!ITEMS_EXPANDED; renderItems(dto); }; }
+      function renderPortfolio(dto){ var n=document.getElementById("portfolioSection"); if(dto.report_type!=="MONTHLY"){ n.style.display="none"; n.innerHTML=""; return; } var c=dto.portfolio.cards||[], t=dto.portfolio.totals, r=''; if(!c.length) r='<tr><td colspan="6" class="muted">No active cards found. Please check your Card_Assets status.</td></tr>'; else r=c.map(function(x){ return '<tr><td>'+safeText(x.card_name||'')+'</td><td>'+safeText(x.status||'-')+'</td><td class="num">'+safeText(formatUsd(x.annual_fee||0))+'</td><td class="num">'+safeText(formatUsd(x.est_value||0))+'</td><td class="num">'+safeText(formatUsd(x.net||0))+'</td><td>'+safeText(x.lifecycle_stage||'-')+'</td></tr>'; }).join(''); n.style.display=""; n.innerHTML='<h2 class="section-title">Portfolio</h2><div class="totals"><span>Annual Fees: <strong>'+safeText(formatUsd(t.annual_fees||0))+'</strong></span><span>Estimated Value: <strong>'+safeText(formatUsd(t.value||0))+'</strong></span><span>Net: <strong>'+safeText(formatUsd(t.net||0))+'</strong></span></div><div class="table-wrap"><table><thead><tr><th>Card</th><th>Status</th><th class="num">Annual Fee</th><th class="num">Value</th><th class="num">Net</th><th>Lifecycle</th></tr></thead><tbody>'+r+'</tbody></table></div>'; }
+      function renderOffers(dto){ var l=Array.isArray(dto.promotions)?dto.promotions:[], v=PROMOTIONS_EXPANDED?l:l.slice(0,3), b=''; if(!l.length) b=(dto.report_type==="FIRST"?'<div class="item muted">No active offers right now. We\u2019ll surface them when they\u2019re worth acting on.</div>':'<div class="item muted">No active promotions.</div>'); else b='<div class="list">'+v.map(function(p){ var link=p.affiliate_url?('<a class="link" target="_blank" rel="noopener" href="'+safeText(p.affiliate_url)+'">Open link</a>'):'<span class="muted">No link</span>'; return '<article class="item"><div class="row"><strong>'+safeText(p.promo_headline||p.card_name||'Promotion')+'</strong></div><div class="row muted">Bonus: '+safeText(formatUsd(p.bonus_value_est_usd||0))+' | End date: '+safeText(p.promo_end_date||'-')+'</div><div class="row">'+link+'</div></article>'; }).join('')+'</div>'; var tg=l.length>3?'<button id="promotionsToggle" class="toggle">'+(PROMOTIONS_EXPANDED?'Show fewer':('Show all ('+l.length+')'))+'</button>':''; var t=dto.report_type==="FIRST"?"Best Offers to Boost Your Next 12 Months":"Promotions"; document.getElementById("promotionsSection").innerHTML='<h2 class="section-title">'+safeText(t)+'</h2>'+b+tg; var n=document.getElementById("promotionsToggle"); if(n) n.onclick=function(){ PROMOTIONS_EXPANDED=!PROMOTIONS_EXPANDED; renderOffers(dto); }; }
+      function renderDoNothingVsAct(dto){ var n=document.getElementById("compareStripSection"); if(dto.report_type!=="FIRST"){ n.style.display="none"; n.innerHTML=""; return; } var closing=dto.kpis.recurring_net<0?"Doing nothing keeps you in the red for another year.":"A few small changes can unlock meaningful value."; n.style.display=""; n.innerHTML='<h2 class="section-title">Do Nothing vs Act</h2><div class="compare-grid"><article class="compare-card"><div class="compare-label">Do nothing (12 months)</div><div class="compare-value '+(dto.kpis.recurring_net<0?'neg':'')+'">'+safeText(formatUsd(dto.kpis.recurring_net))+'</div></article><article class="compare-card"><div class="compare-label">If you act (12 months)</div><div class="compare-value">'+safeText(formatUsdOrDash(dto.kpis.optimized_net))+'</div></article></div><div class="row">You can unlock: <strong>'+safeText(formatUsdOrDash(dto.kpis.unlock))+'</strong></div><div class="row muted">'+safeText(closing)+'</div>'; }
+      function renderNextSteps(dto){ var l=Array.isArray(dto.actions)?dto.actions:[], picked=[]; for(var i=0;i<l.length&&picked.length<2;i++){ var a=l[i]||{}, act=resolvedActionText(a); if(!act||/check report details/i.test(act)) continue; picked.push({ action:act, card_name:a.card_name||"Card" }); } var h='<h2 class="section-title">Next Steps</h2>'; if(!picked.length) h+='<ul class="next-list"><li>Next: No action needed. Recheck next month.</li></ul>'; else h+='<ul class="next-list">'+picked.map(function(x){ return '<li>Next: '+safeText(x.action)+' ('+safeText(x.card_name)+')</li>'; }).join('')+'</ul>'; document.getElementById("nextActionsSection").innerHTML=h; }
+      function renderFooter(){ document.getElementById("footerSection").innerHTML='<h2 class="section-title">Footer</h2><div class="row">12-month net = estimated value - annual fees (recurring only).</div><div class="row">Optimized net and unlock are estimates based on suggested actions.</div>'; }
+      function renderFirst_CurrentStatus(dto){
+        var k=dto.kpis||{}, t=(dto.portfolio&&dto.portfolio.totals)||{}, cards=(dto.portfolio&&dto.portfolio.cards)||[];
+        var fees=(typeof k.recurring_fees==="number")?k.recurring_fees:(t.annual_fees||0);
+        var value=(typeof k.recurring_value==="number")?k.recurring_value:(t.value||0);
+        var net=(typeof k.recurring_net==="number")?k.recurring_net:(t.net||0);
+        var sorted=sortByNetAsc(cards), activeByFields=sorted.filter(function(c){ var st=String(c&&c.status||"").toLowerCase(), lc=String(c&&c.lifecycle_stage||"").toLowerCase(); if(!st&&!lc) return false; if(/closed|cancel|inactive/.test(st)||/closed|cancel|inactive/.test(lc)) return false; return /active|open|prebonus/.test(st)||/active|open|prebonus/.test(lc); });
+        var activeCards=(activeByFields.length>0)?activeByFields:sorted;
+        var activeCount=activeCards.length;
+        var clarifier='This section reflects your current setup. One-time welcome bonuses are shown separately below.';
+        var rows="";
+        if(!activeCount){ rows='<tr><td colspan="6" class="muted">No active cards found. Please check Card_Assets.</td></tr>'; document.getElementById("heroSection").innerHTML='<h2 class="section-title">Your Current Credit Card Setup (Next 12 Months)</h2><div class="table-wrap"><table><thead><tr><th>Card</th><th class="num">Annual Fee</th><th class="num">Est. Value</th><th class="num">Net</th><th>Status</th><th>Lifecycle</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="row muted">'+safeText(clarifier)+'</div>'; return; }
+        if(activeCount===1){
+          var c=activeCards[0], st=String(c.status||"").trim()||((Number(c.net)<0)?"Bleeding":"OK");
+          rows='<tr><td>'+safeText(c.card_name||"")+'</td><td class="num">'+safeText(formatUsd(c.annual_fee||0))+'</td><td class="num">'+safeText(formatUsd(c.est_value||0))+'</td><td class="num">'+safeText(formatUsd(c.net||0))+'</td><td>'+safeText(st)+'</td><td>'+safeText(c.lifecycle_stage||"-")+'</td></tr>';
+          document.getElementById("heroSection").innerHTML='<h2 class="section-title">Your Current Credit Card Setup (Next 12 Months)</h2><div class="table-wrap"><table><thead><tr><th>Card</th><th class="num">Annual Fee</th><th class="num">Est. Value</th><th class="num">Net</th><th>Status</th><th>Lifecycle</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="row muted">'+safeText(clarifier)+'</div>';
+          return;
+        }
+        var agStatus=(net<0)?"Bleeding":"OK";
+        rows='<tr><td class="num">'+safeText(formatUsd(fees))+'</td><td class="num">'+safeText(formatUsd(value))+'</td><td class="num">'+safeText(formatUsd(net))+'</td><td>'+safeText(agStatus)+'</td></tr>';
+        document.getElementById("heroSection").innerHTML='<h2 class="section-title">Your Current Credit Card Setup (Next 12 Months)</h2><div class="table-wrap"><table><thead><tr><th class="num">Annual Fee</th><th class="num">Est. Value</th><th class="num">Net</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="row muted">'+safeText(clarifier)+'</div>';
+      }
+      function renderFirst_OneTimeBonus(dto){
+        var cards=(dto.portfolio&&dto.portfolio.cards)||[];
+        var l=cards.filter(function(c){ return !!(c&&(c.is_prebonus===true||String(c.lifecycle_stage||"").toLowerCase()==="prebonus")); });
+        var b='';
+        if(!l.length) b='<div class="row muted">No active welcome bonuses are currently pending.</div>';
+        else b='<div class="list">'+l.map(function(c){ var deadline=(c.fee_due_month||c.bonus_deadline||c.promo_end_date||""); return '<article class="item"><div class="row"><strong>'+safeText(c.card_name||"Card")+'</strong> <span class="'+safeText(statusBadgeClass("Pre-Bonus"))+'">Pre-Bonus</span></div><div class="row muted">If you don’t finish the spend, the bonus value disappears.</div><div class="row muted">'+safeText(deadline?('Deadline: '+String(deadline)):'Deadline: Not provided — please confirm in your sheet.')+'</div></article>'; }).join("")+'</div>';
+        document.getElementById("monthlyBannerSection").style.display="";
+        document.getElementById("monthlyBannerSection").innerHTML='<h2 class="section-title">One-time Bonuses In Progress (Not Included Above)</h2>'+b;
+      }
+      function renderFirst_ComparisonTable(dto){
+        var k=dto.kpis||{}, unlock=Number(k.unlock), hasOpt=(k.optimized_net!=null&&k.optimized_net!==""&&!isNaN(Number(k.optimized_net)));
+        var sc=dto.scenario_comparison||{}, dn=sc.do_nothing||{}, ac=sc.act||{};
+        var lead=(!isNaN(unlock)&&unlock>0)?('You have room to improve. Acting on the top items can unlock about '+formatUsd(unlock)+' over the next 12 months.'):("Your setup looks stable. We’ll only alert you when something changes.");
+        var note=(hasOpt||(!isNaN(unlock)&&unlock>0))?'':'<div class="row muted">Not available yet</div>';
+        document.getElementById("outlookSection").style.display="";
+        document.getElementById("outlookSection").innerHTML='<h2 class="section-title">Your Improvement Potential (Comparison Table)</h2><div class="row">'+safeText(lead)+'</div><div class="table-wrap"><table><thead><tr><th>Scenario</th><th class="num">Annual Fee (Recurring)</th><th class="num">Spend Rewards (Recurring)</th><th class="num">Unlock Bonus (One-Time)</th><th class="num">12-month Net (Total)</th></tr></thead><tbody><tr><td>Do nothing (keep current)</td><td class="num">'+safeText(formatUsdOrDash(dn.annual_fee))+'</td><td class="num">'+safeText(formatUsdOrDash(dn.spend_rewards))+'</td><td class="num">'+safeText(formatUsdOrDash(dn.unlock_bonus))+'</td><td class="num">'+safeText(formatUsdOrDash(dn.net_12m))+'</td></tr><tr><td>If you act (after fixes)</td><td class="num">'+safeText(formatUsdOrDash(ac.annual_fee))+'</td><td class="num">'+safeText(formatUsdOrDash(ac.spend_rewards))+'</td><td class="num">'+safeText(formatUsdOrDash(ac.unlock_bonus))+'</td><td class="num">'+safeText(formatUsdOrDash(ac.net_12m))+'</td></tr></tbody></table></div><div class="row muted">How this table is calculated:</div><ul class="row muted"><li>Annual Fee (Recurring): your current fees, adjusted by recommended fee changes (cancel/downgrade/replace) plus any new first-year fees (if applicable).</li><li>Spend Rewards (Recurring): projected rewards from your spend by category using conservative earn rates, plus recurring uplift from recommended actions (v1.0 does not fully re-optimize every spend line).</li><li>Unlock Bonus (One-Time): achievable in-progress bonuses on your existing cards, plus the bonus from the single “Recommended Now” new offer (if any).</li><li>12-month Net (Total): Spend Rewards + Unlock Bonus − Annual Fee.</li></ul>'+note;
+      }
+      function renderFirst_CardHealth(dto){
+        var cards=(dto.portfolio&&dto.portfolio.cards)||[], rows="";
+        function why(status){ if(status==="Bleeding") return "This card is costing you money every year."; if(status==="Pre-Bonus") return "If you don’t finish the spend, the bonus value disappears."; return "This card is pulling its weight."; }
+        function stFor(c){ if(c&&c.is_prebonus===true) return "Pre-Bonus"; if((c&&c.is_bleeding===true)||Number(c&&c.net)<0) return "Bleeding"; return "OK"; }
+        if(!cards.length) rows='<tr><td colspan="6" class="muted">No active cards found. Please check Card_Assets.</td></tr>';
+        else rows=cards.map(function(c){ var st=stFor(c); return '<tr><td>'+safeText(c.card_name||"")+'</td><td class="num">'+safeText(formatUsd(c.annual_fee||0))+'</td><td class="num">'+safeText(formatUsd(c.est_value||0))+'</td><td class="num">'+safeText(formatUsd(c.net||0))+'</td><td><span class="'+safeText(statusBadgeClass(st))+'">'+safeText(st)+'</span></td><td>'+safeText(why(st))+'</td></tr>'; }).join("");
+        document.getElementById("portfolioSnapshotSection").style.display="";
+        document.getElementById("portfolioSnapshotSection").innerHTML='<h2 class="section-title">Card Health (What’s Working vs What’s Leaking)</h2><div class="table-wrap"><table><thead><tr><th>Card</th><th class="num">Annual Fee</th><th class="num">Est. Value</th><th class="num">Net</th><th>Status</th><th>Why it matters</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      }
+      function renderFirst_PriorityActions(dto){
+        var actions=Array.isArray(dto.actions)?dto.actions.slice():[];
+        var cardSet={}, cards=(dto.portfolio&&dto.portfolio.cards)||[];
+        cards.forEach(function(c){ var n=String(c&&c.card_name||"").trim(); if(n) cardSet[n.toLowerCase()]=1; });
+        actions=actions.filter(function(a){ var n=String(a&&a.card_name||"").trim().toLowerCase(); return !!(n&&cardSet[n]); });
+        actions.sort(function(x,y){ var xp=Number(x&&x.priority); if(isNaN(xp)) xp=999; var yp=Number(y&&y.priority); if(isNaN(yp)) yp=999; return xp-yp; });
+        var v=actions.slice(0,3), b="";
+        if(!v.length) b='<div class="item muted">No urgent actions. We\u2019ll keep monitoring.</div>';
+        else b='<div class="list">'+v.map(function(a){ var pr=(a.priority==null||a.priority==="")?"-":String(a.priority), act=resolvedActionText(a); return '<article class="item"><div class="item-top"><span class="pill">P'+safeText(pr)+'</span><span class="muted">'+safeText(actionLabel(a.issue_type))+'</span></div><div class="row"><strong>'+safeText(a.card_name||"")+' - '+safeText(a.title||"")+'</strong></div><div class="row">Action: '+safeText(act)+'</div><div class="row">Impact: <strong>'+safeText(formatImpact(a.impact_usd))+'</strong></div></article>'; }).join("")+'</div>';
+        document.getElementById("cardHealthSection").style.display="";
+        document.getElementById("cardHealthSection").innerHTML='<h2 class="section-title">Top Priority Actions (Do These First)</h2>'+b;
+      }
+      function renderFirst_BestOffers(dto){
+        var l=Array.isArray(dto.promotions)?dto.promotions.slice(0,3):[], b="";
+        if(!l.length) b='<div class="item muted">No active offers right now.</div>';
+        else b='<div class="list">'+l.map(function(p){ var issuer=issuerFromPromotionOrCard(p), why=((Number(dto.kpis&&dto.kpis.unlock)||0)>0)?"High-value bonus can accelerate your next 12 months.":"A strong bonus when it matches your spend pattern."; var isNow=String(p.recommendation_tier||"")==="Now"; var tierBadge=isNow?('<span class="'+safeText(statusBadgeClass("OK"))+'">Recommended Now</span>'):''; var link=p.affiliate_url?('<a class="link" target="_blank" rel="noopener" href="'+safeText(p.affiliate_url)+'">Open Link</a>'):'<span class="muted">No link</span>'; return '<article class="item"><div class="row"><strong>'+safeText(issuer)+'</strong>'+(tierBadge?(' '+tierBadge):'')+'</div><div class="row">'+safeText((p.promo_headline||p.card_name||"Offer")+', End date: '+(p.promo_end_date||"-"))+'</div><div class="row muted">'+safeText(why)+'</div><div class="row">'+link+'</div></article>'; }).join("")+'</div>';
+        document.getElementById("itemsSection").style.display="";
+        document.getElementById("itemsSection").innerHTML='<h2 class="section-title">Best Offers</h2>'+b;
+      }
+      function renderFirst_DoNothingVsAct(dto){
+        var k=dto.kpis||{}, sc=dto.scenario_comparison||{}, dn=sc.do_nothing||{}, ac=sc.act||{}, closing=(k.recurring_net<0)?"Doing nothing keeps you in the red for another year.":"A few small changes can unlock meaningful value.";
+        document.getElementById("portfolioSection").style.display="";
+        document.getElementById("portfolioSection").innerHTML='<h2 class="section-title">Do Nothing vs Act Next 12 Months</h2><div class="table-wrap no-scroll-table"><table><thead><tr><th>Metric</th><th class="num">Do nothing</th><th class="num">Act on recommendations</th></tr></thead><tbody><tr><td>Annual Fee (12m)</td><td class="num">'+safeText(formatUsdOrDash(dn.annual_fee))+'</td><td class="num">'+safeText(formatUsdOrDash(ac.annual_fee))+'</td></tr><tr><td>Spend Rewards (12m)</td><td class="num">'+safeText(formatUsdOrDash(dn.spend_rewards))+'</td><td class="num">'+safeText(formatUsdOrDash(ac.spend_rewards))+'</td></tr><tr><td>Unlock Bonus (one-time)</td><td class="num">'+safeText(formatUsdOrDash(dn.unlock_bonus))+'</td><td class="num">'+safeText(formatUsdOrDash(ac.unlock_bonus))+'</td></tr><tr><td>12-month Net</td><td class="num">'+safeText(formatUsdOrDash(dn.net_12m))+'</td><td class="num">'+safeText(formatUsdOrDash(ac.net_12m))+'</td></tr></tbody></table></div><div class="row muted">'+safeText(closing)+'</div>';
+      }
+      function renderLoadingState(type){
+        var t = reportTypeLabel(type);
+        document.getElementById("clientName").textContent = "Credit Card Health Check Report";
+        document.getElementById("reportTypeLabel").textContent = t;
+        document.getElementById("generatedAt").textContent = "Preparing...";
+        document.getElementById("heroSection").innerHTML = '<h2 class="section-title">Hero (12-month impact)</h2><div class="skeleton"></div><div class="skeleton" style="margin-top:8px;"></div>';
+        ["monthlyBannerSection","outlookSection","portfolioSnapshotSection","cardHealthSection","itemsSection","portfolioSection","promotionsSection","compareStripSection","nextActionsSection","footerSection"].forEach(function(id){
+          var n=document.getElementById(id);
+          if(!n) return;
+          n.style.display="";
+          n.innerHTML='<div class="skeleton"></div>';
+        });
+      }
+      function buildEmailBody(dto){ var lines=[]; lines.push(dto.client_name+' - '+dto.report_type+' - Generated '+formatIso(dto.generated_at)); lines.push(''); lines.push('12-month numbers'); lines.push('- Keep current: '+formatUsd(dto.kpis.recurring_net)); lines.push('- After fixes: '+formatUsdOrDash(dto.kpis.optimized_net)); lines.push('- Unlock: '+formatUsdOrDash(dto.kpis.unlock)); lines.push(''); lines.push('Top actions'); var a=(dto.actions||[]).slice(0,3); if(!a.length) lines.push('- No urgent actions.'); else a.forEach(function(x,i){ lines.push((i+1)+'. P'+(x.priority==null?'-':String(x.priority))+' '+(x.card_name||'Card')+' - '+(x.action||'Review')); }); lines.push(''); lines.push('Portfolio totals: Fees '+formatUsd(dto.portfolio.totals.annual_fees||0)+' | Value '+formatUsd(dto.portfolio.totals.value||0)+' | Net '+formatUsd(dto.portfolio.totals.net||0)); lines.push(''); lines.push('Promotions'); var p=(dto.promotions||[]).slice(0,3); if(!p.length) lines.push('- No active promotions.'); else p.forEach(function(x,i){ lines.push((i+1)+'. '+(x.promo_headline||x.card_name||'Promotion')+' (end: '+(x.promo_end_date||'-')+')'); }); lines.push(''); lines.push('12-month net = estimated value - annual fees (recurring only).'); lines.push('Optimized net and unlock are estimates based on suggested actions.'); return lines.join('\\n'); }
+      function copyEmailBody(){ var dto=LAST_RENDERED_DATA||normalizeDto(FALLBACK_REPORT_DATA), text=buildEmailBody(dto); if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(function(){ setStatus('Email body copied'); }).catch(function(e){ showDebug('copy failed',e); setStatus('Copy failed'); }); return; } var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); setStatus('Email body copied'); }catch(e){ showDebug('copy failed',e); setStatus('Copy failed'); } document.body.removeChild(ta); }
+      function renderDebug(dto){ if(!isDebug) return; var t=document.getElementById("debugText"); if(!t) return; t.textContent=["buildInfo: "+BUILD_INFO,"url: "+String(window.location.href),"CURRENT_REPORT_TYPE: "+String(CURRENT_REPORT_TYPE||""),"lastResponse: "+LAST_RESPONSE_META,"status: "+((document.getElementById("statusText")||{}).textContent||""),"actions: "+String(dto&&dto.actions?dto.actions.length:0)].join("\\n"); }
+      function renderAll(data){
+        var dto=normalizeDto(data||FALLBACK_REPORT_DATA);
+        LAST_RENDERED_DATA=dto; CURRENT_REPORT_TYPE=dto.report_type; renderHeader(dto);
+        if(dto.report_type==="FIRST"){
+          renderFirst_CurrentStatus(dto);
+          renderFirst_OneTimeBonus(dto);
+          renderFirst_ComparisonTable(dto);
+          renderFirst_CardHealth(dto);
+          renderFirst_PriorityActions(dto);
+          renderFirst_BestOffers(dto);
+          renderFirst_DoNothingVsAct(dto);
+          ["promotionsSection","compareStripSection","nextActionsSection","footerSection"].forEach(function(id){ var n=document.getElementById(id); if(!n) return; n.style.display="none"; n.innerHTML=""; });
+          renderDebug(dto); writeCachedDto(dto); return;
+        }
+        renderHero(dto); renderMonthlyStatusBanner(dto); renderOutlook(dto); renderPortfolioSnapshot(dto); renderCardHealth(dto); renderItems(dto); renderPortfolio(dto); renderOffers(dto); renderDoNothingVsAct(dto); renderNextSteps(dto); renderFooter(); renderDebug(dto); writeCachedDto(dto);
+      }
+      function loadData(){
+        setStatus("Loading preview...");
+        if(!window.google||!google.script||!google.script.run){
+          var fb=readCachedDto(CURRENT_REPORT_TYPE) || FALLBACK_REPORT_DATA;
+          renderAll(fb);
+          setStatus("Offline preview");
+          LAST_RESPONSE_META="mock";
+          return;
+        }
+        var cached = readCachedDto(CURRENT_REPORT_TYPE);
+        if(cached){
+          renderAll(cached);
+          setStatus("Showing latest snapshot, refreshing...");
+        } else {
+          renderLoadingState(CURRENT_REPORT_TYPE);
+        }
+        google.script.run.withSuccessHandler(function(data){ LAST_RESPONSE_META="ok,type="+(data&&data.report_type?data.report_type:"n/a"); renderAll(data||FALLBACK_REPORT_DATA); setStatus("Preview updated"); }).withFailureHandler(function(err){ LAST_RESPONSE_META="error"; if(!cached) renderAll(FALLBACK_REPORT_DATA); setStatus("Using latest available snapshot"); showDebug("loadData failed",err); }).getBeautifulReportData("Lumina Logic LLC",CURRENT_REPORT_TYPE);
+      }
+      function runFirst(){ CURRENT_REPORT_TYPE="FIRST"; loadData(); }
+      function runMonthly(){ CURRENT_REPORT_TYPE="MONTHLY"; loadData(); }
+      function todayStamp(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+      function reportTypeShort(t){ return String(t||"FIRST").toUpperCase()==="MONTHLY"?"Monthly":"First"; }
+      function downloadPdf(){ setStatus("Building PDF..."); setLoading("downloadBtn",true,"Building...","Download PDF"); var n=document.querySelector("#reportRoot"), c=(LAST_RENDERED_DATA&&LAST_RENDERED_DATA.client_name)?LAST_RENDERED_DATA.client_name:"Lumina Logic LLC", f=reportTypeShort(CURRENT_REPORT_TYPE)+"_"+c+"_"+todayStamp()+".pdf"; if(!n||typeof html2pdf==="undefined"){ setLoading("downloadBtn",false,"Building...","Download PDF"); showDebug("downloadPdf unavailable"); return; } html2pdf().set({ margin:8, filename:f, image:{ type:"jpeg", quality:0.98 }, html2canvas:{ scale:2, useCORS:true, windowWidth:n.scrollWidth }, jsPDF:{ unit:"mm", format:"a4", orientation:"portrait" }, pagebreak:{ mode:["css","legacy"] } }).from(n).save().then(function(){ setLoading("downloadBtn",false,"Building...","Download PDF"); setStatus("PDF downloaded"); }).catch(function(err){ setLoading("downloadBtn",false,"Building...","Download PDF"); setStatus("PDF failed"); showDebug("downloadPdf failed",err); }); }
+      function initPage(){ try{ applyToolbarMode(); document.getElementById("downloadBtn").addEventListener("click",downloadPdf); CURRENT_REPORT_TYPE=reportTypeLabel(CURRENT_REPORT_TYPE); renderLoadingState(CURRENT_REPORT_TYPE); loadData(); }catch(e){ showDebug("init failed",e); } }
+      window.addEventListener("error",function(evt){ showDebug("window.onerror", evt&&(evt.error||evt.message||evt)); }); window.onunhandledrejection=function(evt){ showDebug("unhandledrejection", evt&&evt.reason?evt.reason:evt); };
+      if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",initPage); else initPage();
+    </script>
+  </body>
+</html>

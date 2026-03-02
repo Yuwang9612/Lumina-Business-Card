@@ -4,10 +4,9 @@
  */
 
 var DECISION_CONFIG = {
-  DATA_ENV: 'TEST', // TEST or PROD
-  SHEET_CARD_ASSETS_TEST: 'Card_Assets_TEST',
-  SHEET_CARD_CATALOG_TEST: 'Card_Catalog_TEST',
-  SHEET_PROMO_CATALOG_TEST: 'Promo_Catalog_TEST',
+  // Environment switching removed: all runtime reads use canonical sheet names
+  // (Card_Assets / Card_Catalog / Promo_Catalog) in the current spreadsheet.
+  DATA_ENV: 'PROD',
   DATA_DEBUG: false,
   DEDUPE_DEBUG: false,
   REPORT_MONTH_OVERRIDE: null, // e.g. "2026-02"

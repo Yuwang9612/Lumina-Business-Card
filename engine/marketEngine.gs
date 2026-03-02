@@ -149,7 +149,7 @@ function runMarketEngine(cardsNormalized, catalogAll, promoCatalog, reportMonth)
     }
     var isStale = false;
     var isValid = true;
-    if (daysOld > (typeof DECISION_CONFIG !== 'undefined' ? DECISION_CONFIG.STALE_DAYS : 45)) isStale = true;
+    if (daysOld > freshDays) isStale = true;
     if (bonusValidUntil) {
       var validDt = _parseYmd_(bonusValidUntil);
       if (validDt && validDt < anchorDate) isValid = false;

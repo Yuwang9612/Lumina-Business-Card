@@ -174,7 +174,7 @@ function normalizeCards_(cards, catalogMap) {
   if (platinumDebugLine) {
     try {
       var dbgSs = SpreadsheetApp.getActiveSpreadsheet();
-      var dbgSheet = dbgSs ? dbgSs.getSheetByName('Reports') : null;
+      var dbgSheet = dbgSs ? dbgSs.getSheetByName(SHEET_REPORTS || 'Debug') : null;
       if (dbgSheet) dbgSheet.getRange('H4').setValue(platinumDebugLine);
     } catch (e) {}
   }

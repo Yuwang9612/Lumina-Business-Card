@@ -6,36 +6,24 @@
 var SHEET_PROFILE = 'Company_Profile';
 var SHEET_ASSETS = 'Card_Assets';
 var SHEET_CATALOG = 'Card_Catalog';
-var SHEET_REPORTS = 'Reports';
+var SHEET_REPORTS = 'Debug';
 var SHEET_SNAPSHOTS = 'Snapshots';
 var SHEET_MONTHLY_EVENTS = 'Monthly_Events';
 var SHEET_MONTHLY_REPORT = 'Monthly Health Report';
 var SHEET_PROMO_CATALOG = 'Promo_Catalog';
 
 function _isTestDataEnv_() {
-  return !!(typeof DECISION_CONFIG !== 'undefined' && DECISION_CONFIG && String(DECISION_CONFIG.DATA_ENV || '').toUpperCase() === 'TEST');
+  // Deprecated: environment switching removed. Always use production-named tabs.
+  return false;
 }
 
 function getSheetName_(baseName) {
   var b = String(baseName || '').trim();
-  if (!_isTestDataEnv_()) return b;
-  if (b === SHEET_ASSETS) return (DECISION_CONFIG && DECISION_CONFIG.SHEET_CARD_ASSETS_TEST) ? DECISION_CONFIG.SHEET_CARD_ASSETS_TEST : (SHEET_ASSETS + '_TEST');
-  if (b === SHEET_CATALOG) return (DECISION_CONFIG && DECISION_CONFIG.SHEET_CARD_CATALOG_TEST) ? DECISION_CONFIG.SHEET_CARD_CATALOG_TEST : (SHEET_CATALOG + '_TEST');
-  if (b === SHEET_PROMO_CATALOG) return (DECISION_CONFIG && DECISION_CONFIG.SHEET_PROMO_CATALOG_TEST) ? DECISION_CONFIG.SHEET_PROMO_CATALOG_TEST : (SHEET_PROMO_CATALOG + '_TEST');
+  // Environment switching removed: always resolve to canonical sheet names.
   return b;
 }
 
 function _getSheetByName(ss, name) {
-  var requested = String(name == null ? '' : name).trim();
-  if (_isTestDataEnv_()) {
-    var forbidden = {};
-    forbidden[SHEET_ASSETS] = true;
-    forbidden[SHEET_CATALOG] = true;
-    forbidden[SHEET_PROMO_CATALOG] = true;
-    if (forbidden[requested]) {
-      throw new Error('[ENV_LOCK] DATA_ENV=TEST forbids PROD sheet access: "' + requested + '". Use TEST sheet names only.');
-    }
-  }
   var sheet = ss.getSheetByName(name);
   if (sheet) return sheet;
   var sheets = ss.getSheets();
@@ -123,7 +111,7 @@ function getActiveCards(ss) {
     if (confirmedCol >= 0 && confirmedCol < row.length) obj['assets_last_confirmed'] = row[confirmedCol];
     cards.push(obj);
   }
-  var debugReportSheet = _getSheetByName(ss, SHEET_REPORTS || 'Reports');
+  var debugReportSheet = _getSheetByName(ss, SHEET_REPORTS || 'Debug');
   if (debugReportSheet) {
     var ts = new Date().toISOString().slice(0, 19);
     debugReportSheet.getRange('H2').setValue('DEBUG assetsSheet=' + assetsSheetName + ' | activeCards=' + cards.length + ' | ts=' + ts);

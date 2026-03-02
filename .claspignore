@@ -1,0 +1,18 @@
+**/**
+!appsscript.json
+!**/*.gs
+!**/*.html
+!ai.js
+!calc.js
+!catalog.js
+!format.js
+
+# Local Node/Python tooling (do not upload to Apps Script)
+generateLuminaReport.js
+reportGenerator.js
+lumina_report_generator.py
+node_modules/**
+templates/**
+package.json
+package-lock.json
+*.pdf
