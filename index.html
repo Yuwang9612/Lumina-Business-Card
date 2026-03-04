@@ -57,12 +57,7 @@
         <h1>Lumina Business Card</h1>
         <p>原版入口已恢复。可以直接测试生成报表。</p>
         <div class="actions">
-          <button class="primary" onclick="runFirst()">Generate First</button>
-          <button class="primary" onclick="runMonthly()">Generate Monthly</button>
-          <button class="ghost" onclick="runFirstLegacy()">Legacy First PDF</button>
-          <button class="ghost" onclick="runMonthlyLegacy()">Legacy Monthly PDF</button>
-          <button class="ghost" onclick="goBeautiful()">打开漂亮报告版</button>
-          <button class="ghost" onclick="reloadPage()">刷新入口</button>
+          <button class="primary" onclick="runDashboard()">Customer Credit Card Dashboard</button>
         </div>
         <p id="status" style="margin-top:14px;">状态：待命</p>
       </main>
@@ -73,16 +68,10 @@
         document.getElementById("status").textContent = "状态：" + text;
       }
 
-      function runFirst() {
-        setStatus("正在进入 Beautiful First...");
+      function runDashboard() {
+        setStatus("正在进入 Dashboard...");
         var base = window.location.href.split("?")[0];
-        window.location.href = base + "?view=beautiful&type=FIRST&autorun=1";
-      }
-
-      function runMonthly() {
-        setStatus("正在进入 Beautiful Monthly...");
-        var base = window.location.href.split("?")[0];
-        window.location.href = base + "?view=beautiful&type=MONTHLY&autorun=1";
+        window.location.href = base + "?view=beautiful&type=DASHBOARD&autorun=1";
       }
 
       function openPdfByAnchor(url) {
@@ -97,47 +86,8 @@
         document.body.removeChild(a);
       }
 
-      function runFirstLegacy() {
-        setStatus("正在生成 Legacy First PDF...");
-        google.script.run
-          .withSuccessHandler(function (res) {
-            if (res && res.ok) {
-              setStatus("Legacy First 已生成。");
-              if (res.fileUrl) openPdfByAnchor(res.fileUrl);
-            } else {
-              setStatus("Legacy First 失败: " + (res && res.message ? res.message : "unknown error"));
-            }
-          })
-          .withFailureHandler(function (err) {
-            setStatus("Legacy First 失败: " + (err && err.message ? err.message : err));
-          })
-          .generateFirstLegacyPdfForWeb();
-      }
-
-      function runMonthlyLegacy() {
-        setStatus("正在生成 Legacy Monthly PDF...");
-        google.script.run
-          .withSuccessHandler(function (res) {
-            if (res && res.ok) {
-              setStatus("Legacy Monthly 已生成。");
-              if (res.fileUrl) openPdfByAnchor(res.fileUrl);
-            } else {
-              setStatus("Legacy Monthly 失败: " + (res && res.message ? res.message : "unknown error"));
-            }
-          })
-          .withFailureHandler(function (err) {
-            setStatus("Legacy Monthly 失败: " + (err && err.message ? err.message : err));
-          })
-          .generateMonthlyLegacyPdfForWeb();
-      }
-
-      function goBeautiful() {
-        var base = window.location.href.split("?")[0];
-        window.location.href = base + "?view=beautiful&type=FIRST";
-      }
-      function reloadPage() {
-        window.location.href = window.location.href.split("?")[0];
-      }
+      function goBeautiful() {}
+      function reloadPage() {}
     </script>
   </body>
 </html>

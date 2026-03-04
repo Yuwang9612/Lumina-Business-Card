@@ -1,6 +1,6 @@
 /**
  * @file ReportDTO.gs
- * ReportDTO v1 builders for FIRST / MONTHLY.
+ * ReportDTO v1 builders for FIRST / MONTHLY, plus unified DASHBOARD.
  */
 
 function _dtoToNum_(v, fallback) {
@@ -263,7 +263,7 @@ function buildReportDTOFromFirstModel_(firstModel, options) {
 
   var out = {
     client_name: String(opt.clientName || 'Lumina Logic LLC'),
-    report_type: 'FIRST',
+    report_type: 'DASHBOARD',
     tagline: 'Protecting your profits. Powering your business.',
     generated_at: _dtoIso_(model.reportDate || new Date()),
     kpis: {
@@ -273,7 +273,7 @@ function buildReportDTOFromFirstModel_(firstModel, options) {
       optimized_net: optimizedNet,
       unlock: _dtoToNum_(key.delta, optimizedNet - recurringNet)
     },
-    actions: _dtoSanitizeActions_((focus || []).map(function(it, idx) { return _dtoActionFromItem_(it, idx, 'FIRST_ITEM'); })),
+    actions: _dtoSanitizeActions_((focus || []).map(function(it, idx) { return _dtoActionFromItem_(it, idx, 'DASHBOARD_ITEM'); })),
     promotions: _dtoPromotionsWithTier_(promotions || []),
     portfolio: {
       cards: portfolioCards,
@@ -303,7 +303,7 @@ function buildReportDTOFromMonthlyModel_(monthlyModel, options) {
 
   return {
     client_name: String(opt.clientName || 'Lumina Logic LLC'),
-    report_type: 'MONTHLY',
+    report_type: 'DASHBOARD',
     tagline: 'Protecting your profits. Powering your business.',
     generated_at: _dtoIso_(model.generatedAt || model.reportDate || new Date()),
     kpis: {
@@ -313,7 +313,7 @@ function buildReportDTOFromMonthlyModel_(monthlyModel, options) {
       optimized_net: optimizedNet,
       unlock: _dtoToNum_(ps.delta, optimizedNet - recurringNet)
     },
-    actions: _dtoSanitizeActions_((actions || []).map(function(it, idx) { return _dtoActionFromItem_(it, idx, 'MONTHLY_ITEM'); })),
+    actions: _dtoSanitizeActions_((actions || []).map(function(it, idx) { return _dtoActionFromItem_(it, idx, 'DASHBOARD_ITEM'); })),
     promotions: _dtoPromotionsWithTier_(promotions || []),
     portfolio: {
       cards: portfolioCards,
@@ -324,4 +324,28 @@ function buildReportDTOFromMonthlyModel_(monthlyModel, options) {
       }
     }
   };
+}
+
+function buildReportDTOFromDashboardModel_(dashboardModel, options) {
+  var base = buildReportDTOFromMonthlyModel_(dashboardModel || {}, options || {});
+  var model = dashboardModel || {};
+  var out = base || {};
+  out.report_type = 'DASHBOARD';
+  out.report_cycle_ym = String((options && options.reportCycleYm) || '');
+
+  // Strategy Snapshot must come from scenario_comparison DTO source (SSoT rule).
+  out.scenario_comparison = buildFirstScenarioComparison_(model, out);
+
+  var dashboard = model.dashboard || {};
+  out.dashboard = {
+    system_status: dashboard.system_status || {},
+    strategy_snapshot: dashboard.strategy_snapshot || {
+      scenario_comparison: out.scenario_comparison || { do_nothing: {}, act: {} },
+      note: ''
+    },
+    card_actions: Array.isArray(dashboard.card_actions) ? dashboard.card_actions : (out.actions || []),
+    opportunity_windows: Array.isArray(dashboard.opportunity_windows) ? dashboard.opportunity_windows : (out.promotions || []),
+    data_health: dashboard.data_health || {}
+  };
+  return out;
 }

@@ -11,6 +11,8 @@ var SHEET_SNAPSHOTS = 'Snapshots';
 var SHEET_MONTHLY_EVENTS = 'Monthly_Events';
 var SHEET_MONTHLY_REPORT = 'Monthly Health Report';
 var SHEET_PROMO_CATALOG = 'Promo_Catalog';
+var SHEET_SYSTEM_TRACKING = 'System_Tracking';
+var SHEET_DASHBOARD_SNAPSHOTS = 'Dashboard_Snapshots';
 
 function _isTestDataEnv_() {
   // Deprecated: environment switching removed. Always use production-named tabs.

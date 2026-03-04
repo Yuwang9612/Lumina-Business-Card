@@ -69,6 +69,32 @@ Untracked rule drift is not permitted.
 - Best Offers may list multiple candidates (Top N), but only one may be designated as “Recommended Now”; others must be marked as Watchlist/Alternatives.
 - Ensured that both comparison tables (Improvement Potential and Do Nothing vs Act) must render from the same scenario_comparison DTO source.
 
+### v1.1 — 2026-03-03 (Extension: State Tracking + Unified Dashboard)
+
+Introduced State Tracking Layer to persist temporal metadata for events/actions (first_seen, last_seen, streak months, completed_at).
+
+Defined Unified Dashboard as the primary presentation surface (replacing separate First/Monthly navigation), while preserving FIRST/MONTHLY templates as internal layout profiles.
+
+Added Dashboard output contract sections:
+
+System Status
+
+Strategy Snapshot
+
+Card Actions (risk + action tracker merged)
+
+Opportunity Windows
+
+Data Health
+
+Clarified that state tracking must not modify financial calculations, thresholds, lifecycle classification, or event canonicalization.
+
+Added rendering rules for:
+
+repeated recommendations (anti-fatigue via time semantics)
+
+stale customer data gating (DataStale suppresses precision claims and may downgrade confidence of actions)
+
 ---
 
 ## Scope Boundary
@@ -503,6 +529,180 @@ Recurring logic, lifecycle classification, event normalization, and reporting co
 - Email body  
 
 The system must be deterministic, consistent, and financially trustworthy.
+
+---
+
+## 17. State Tracking Layer (v1.1+ Extension)
+17.1 Purpose
+
+The system may persist temporal metadata to support consistent user experience across months, including:
+
+preventing repeated-recommendation fatigue
+
+showing action progress and time elapsed
+
+detecting data update inactivity
+
+ensuring deterministic dashboard messaging over time
+
+State tracking is presentation-support only.
+
+17.2 Non-Interference Rule (Hard)
+
+State tracking MUST NOT:
+
+alter any financial calculations (est_value, net, current_net, adjusted_net, realizable_delta, unlock)
+
+alter any constants, thresholds, lifecycle rules, or canonical event enumeration
+
+be used as an input to change health classification
+
+Tracking may only influence:
+
+phrasing
+
+display ordering
+
+“time since” messaging
+
+confidence / data-health banners
+
+Tracking fields are never inputs to financial calculations; they are outputs only.
+
+17.3 Tracking Store (Internal SSoT)
+
+An internal store (sheet/table) named System_Tracking is authorized.
+
+Minimum fields (per card_name + canonical_event_type):
+
+card_name
+event_type (canonical)
+first_seen_ym
+last_seen_ym
+active_streak_months
+last_computed_net
+last_computed_health (Bleeding/Watch/Efficient)
+recommended_action_code
+recommended_action_title
+recommended_action_opened_ym
+action_completed_at (date, nullable)
+last_status (Active/Closed/Planned)
+last_status_change_at (date, nullable)
+tracking_updated_at (date)
+17.4 Derivation Rules (Deterministic)
+
+first_seen_ym: set when event_type becomes active for the first time.
+
+last_seen_ym: update whenever event_type remains active in a new report cycle.
+
+active_streak_months: increment if active in consecutive cycles; reset to 1 when re-activated after inactive period.
+
+recommended_action_*: derived by rule engine using existing frozen outputs (health/lifecycle/event type) and catalog flags (e.g., downgrade_option).
+
+action_completed_at: set automatically when system detects completion via customer-visible state change, e.g.:
+
+card status transitions Active → Closed, or
+
+card stops triggering the event_type for N consecutive cycles (N default = 2) (optional), or
+
+explicit “Mark as Done” UI action (if implemented; optional).
+
+No additional customer input is required.
+
+---
+
+## 18. Unified Dashboard Output Contract (v1.1)
+18.1 Primary Surface
+
+The system’s primary user-facing surface is the Dashboard.
+
+FIRST and MONTHLY templates remain valid as layout profiles, but the navigation model must not require users to choose “First vs Monthly” as separate report types.
+
+18.2 Dashboard Sections (Canonical Order)
+
+The Dashboard must render the following sections in this order:
+
+system_status
+
+strategy_snapshot
+
+card_actions
+
+opportunity_windows
+
+data_health
+
+18.3 Dashboard DTO Additions
+
+The DTO baseline contract (Section 12) is extended with:
+
+dashboard: {
+  system_status: {...},
+  strategy_snapshot: {...},
+  card_actions: [...],
+  opportunity_windows: [...],
+  data_health: {...}
+}
+18.4 Section Semantics
+
+system_status: headline state derived from portfolio health + data health gates.
+
+strategy_snapshot: scenario comparison values must still render from scenario_comparison (v1.0.1+ rule preserved).
+
+card_actions: merges risk context + recommended action + progress metadata (from System_Tracking).
+
+opportunity_windows: derived from promotions, respecting market freshness rules.
+
+data_health: derived from customer stale rules and market freshness separation.
+
+---
+
+## 19. Dashboard Display Rules (v1.1)
+19.1 Anti-Fatigue Rule (Time Semantics Required)
+
+When a card action repeats across months, the UI/PDF must display a time-progress phrase using tracking metadata, e.g.:
+
+“Open for 2 months”
+
+“Underperforming for 2 months”
+
+“Window closes in 18 days”
+
+The system must avoid repeating identical month-to-month wording without progress markers.
+
+19.2 DataStale Gate (Customer Data)
+
+If DataStale is active (Section 9.1), Dashboard must:
+
+show data_health prominently
+
+avoid precision claims; must include conservative/last-updated framing
+
+optionally suppress or downgrade prominence of card_actions except for:
+
+DataStale itself
+
+FeeDue reminders (if confidence is sufficient from assets data)
+
+19.3 Market Freshness Gate (Offers)
+
+Offers must follow Section 9.2:
+
+Market freshness uses MARKET_FRESH_DAYS
+
+Stale offers may be displayed but must be labeled “Offer data may be outdated”
+
+bonus_valid_until remains display-only and never affects recurring calculations
+
+19.4 Output Hard Rules Still Apply
+
+All v1.0 Output Hard Rules remain in force (Section 11), including:
+
+no placeholders
+
+no “$0 impact”
+
+correct monetary formatting
 
 ---
 

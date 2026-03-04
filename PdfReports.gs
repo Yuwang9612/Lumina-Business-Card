@@ -1,6 +1,7 @@
 /**
  * @file PdfReports.gs
  * Configure these IDs before production use:
+ * - TEMPLATE_DASHBOARD_DOC_ID
  * - TEMPLATE_MONTHLY_DOC_ID
  * - TEMPLATE_FIRST_DOC_ID
  * Optional:
@@ -9,6 +10,8 @@
 
 var TEMPLATE_MONTHLY_DOC_ID = '1ePF92h107-Kl9EBQxyY6iR3diM1_VLFWu1bocsyFdMM';
 var TEMPLATE_FIRST_DOC_ID = '1IEAthHEVQYVqmvscKeuvwNd2lVCH4M3QwJwmhfypCAo';
+var TEMPLATE_DASHBOARD_DOC_ID = '';
+var DASHBOARD_TEMPLATE_PATH = 'docs/templates/DASHBOARD_TEMPLATE.md';
 var OUTPUT_FOLDER_ID = '';
 var BRAND_LOGO_FILE_ID = '';
 var BRAND_TAGLINE = 'Protecting your profits. Powering your business.';
@@ -60,17 +63,72 @@ function generateFirstPdf(ss, firstModel) {
 }
 
 function resolveTemplateId_(type) {
-  var key = type === 'first' ? 'TEMPLATE_FIRST_DOC_ID' : 'TEMPLATE_MONTHLY_DOC_ID';
+  var key = type === 'first' ? 'TEMPLATE_FIRST_DOC_ID' : (type === 'dashboard' ? 'TEMPLATE_DASHBOARD_DOC_ID' : 'TEMPLATE_MONTHLY_DOC_ID');
   var propId = '';
   try {
     propId = String(PropertiesService.getScriptProperties().getProperty(key) || '').trim();
   } catch (e) {}
-  var fallbackId = type === 'first' ? TEMPLATE_FIRST_DOC_ID : TEMPLATE_MONTHLY_DOC_ID;
+  var fallbackId = type === 'first'
+    ? TEMPLATE_FIRST_DOC_ID
+    : (type === 'dashboard' ? (TEMPLATE_DASHBOARD_DOC_ID || TEMPLATE_FIRST_DOC_ID) : TEMPLATE_MONTHLY_DOC_ID);
   var id = propId || fallbackId;
   if (!id || id.indexOf('REPLACE_WITH_') === 0) {
     throw new Error('Template ID not configured: ' + key);
   }
   return id;
+}
+
+function generateDashboardPdf(ss, dashboardDto) {
+  if (!dashboardDto) throw new Error('dashboardDto is required');
+  ensureCompanyNameField_(ss);
+  var templateId = resolveTemplateId_('dashboard');
+  var clientRaw = getClientName_(ss);
+  var client = safeFileName_(clientRaw);
+  var clientKey = String(clientRaw || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'client';
+  var ym = dashboardDto.report_cycle_ym || formatDate_(new Date(), 'yyyy-MM');
+  var copyName = ('Dashboard_' + clientKey + '_' + ym).replace(/\.pdf$/i, '');
+  var copyRes = createReportDocCopy_(templateId, copyName, ss, 'dashboard');
+  var docCopy = copyRes.file;
+  var doc = copyRes.doc;
+  var body = initDoc_(doc);
+  var d = dashboardDto.dashboard || {};
+  var ssLine = (d.system_status && d.system_status.headline) ? d.system_status.headline : 'Dashboard';
+  appendHeader_(body, 'Dashboard Report', dashboardDto.client_name || getClientName_(ss), formatDate_(new Date(), 'yyyy-MM-dd'), 'DASHBOARD');
+  body.appendParagraph('Template: ' + DASHBOARD_TEMPLATE_PATH);
+  body.appendParagraph('Cycle: ' + ym);
+  body.appendParagraph('System Status: ' + ssLine);
+  body.appendParagraph((d.system_status && d.system_status.subline) ? d.system_status.subline : '');
+  body.appendParagraph('');
+  body.appendParagraph('Strategy Snapshot');
+  var sc = dashboardDto.scenario_comparison || {};
+  body.appendParagraph('Do nothing 12-month net: ' + formatUsd_(sc.do_nothing && sc.do_nothing.net_12m));
+  body.appendParagraph('Act 12-month net: ' + formatUsd_(sc.act && sc.act.net_12m));
+  body.appendParagraph('');
+  body.appendParagraph('Cards Requiring Attention');
+  var actions = d.card_actions || dashboardDto.actions || [];
+  if (!actions.length) body.appendParagraph('All cards are performing as expected.');
+  for (var i = 0; i < actions.length; i++) {
+    var a = actions[i] || {};
+    body.appendParagraph((i + 1) + '. ' + (a.card_name || 'Card') + ' - ' + (a.title || 'Action'));
+    body.appendParagraph('Action: ' + (a.action || 'Review this item and take the best next step.'));
+    body.appendParagraph('Impact: ' + (a.impact_usd && Number(a.impact_usd) > 0 ? ('Saves about ' + formatUsd_(a.impact_usd) + ' per year') : 'Potential upside'));
+  }
+  body.appendParagraph('');
+  body.appendParagraph('Opportunity Windows');
+  var promos = d.opportunity_windows || dashboardDto.promotions || [];
+  if (!promos.length) body.appendParagraph('No high-value windows at this time.');
+  for (var j = 0; j < promos.length; j++) {
+    var p = promos[j] || {};
+    body.appendParagraph((j + 1) + '. ' + (p.promo_headline || p.card_name || 'Promotion'));
+  }
+  body.appendParagraph('');
+  body.appendParagraph('Data Health');
+  var dh = d.data_health || {};
+  body.appendParagraph('Status: ' + (dh.customer_data_status || 'Up to date'));
+  if (dh.caution) body.appendParagraph(dh.caution);
+  doc.saveAndClose();
+  var pdfFile = exportPdfFromCopy_(ss, docCopy, 'Dashboard_' + clientKey + '_' + ym + '.pdf');
+  return { fileId: pdfFile.getId(), fileUrl: buildDriveFileViewUrl_(pdfFile) };
 }
 
 function createReportDocCopy_(templateId, copyName, ss, type) {

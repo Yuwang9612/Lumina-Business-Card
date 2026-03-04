@@ -9,12 +9,7 @@ function doGetLegacy_(e) {
 function onOpen() {
   var menu = SpreadsheetApp.getUi()
     .createMenu('Card Profit Watch')
-    .addItem('Generate First Wake Up Report', 'generateFirstReport')
-    .addItem('Generate Monthly Health Check Report', 'generateMonthlyReport')
-    .addSeparator()
-    .addItem('Set Admin View', 'setupAdminView')
-    .addItem('Set Customer View', 'setupCustomerView')
-    .addItem('Admin: Migrate Core Sheets To Production', 'migrateCoreSheetsToProduction');
+    .addItem('Customer Credit Card Dashboard', 'generateDashboardReport');
   menu.addToUi();
 }
 
@@ -86,7 +81,7 @@ function debugAdminAccess() {
 }
 
 function openBeautiful_(type) {
-  var t = String(type || 'FIRST').toUpperCase() === 'MONTHLY' ? 'MONTHLY' : 'FIRST';
+  var t = 'DASHBOARD';
   // Render UI directly inside Sheets dialog to avoid broken external URL routing.
   var tmpl = HtmlService.createTemplateFromFile('BeautifulReportUI');
   tmpl.initialType = t;
@@ -165,24 +160,29 @@ function initializeTenantSettings(config) {
   if (c.reportRecipients != null) props.setProperty('REPORT_RECIPIENTS', String(c.reportRecipients).trim());
   if (c.templateMonthlyDocId != null) props.setProperty('TEMPLATE_MONTHLY_DOC_ID', String(c.templateMonthlyDocId).trim());
   if (c.templateFirstDocId != null) props.setProperty('TEMPLATE_FIRST_DOC_ID', String(c.templateFirstDocId).trim());
+  if (c.templateDashboardDocId != null) props.setProperty('TEMPLATE_DASHBOARD_DOC_ID', String(c.templateDashboardDocId).trim());
   if (c.productionSpreadsheetId != null) props.setProperty('PRODUCTION_SPREADSHEET_ID', String(c.productionSpreadsheetId).trim());
   return 'initialized';
 }
 
 function generateFirstReport() {
-  openBeautiful_('FIRST');
+  openBeautiful_('DASHBOARD');
 }
 
 function generateMonthlyReport() {
-  openBeautiful_('MONTHLY');
+  openBeautiful_('DASHBOARD');
+}
+
+function generateDashboardReport() {
+  openBeautiful_('DASHBOARD');
 }
 
 function generateFirstReportLegacy_() {
-  openBeautiful_('FIRST');
+  openBeautiful_('DASHBOARD');
 }
 
 function generateMonthlyReportLegacy_() {
-  openBeautiful_('MONTHLY');
+  openBeautiful_('DASHBOARD');
 }
 
 function runAlertsCheck() {

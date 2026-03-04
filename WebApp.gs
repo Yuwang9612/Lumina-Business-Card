@@ -189,36 +189,386 @@ function safeRun_(fn, fallback) {
 }
 
 function getMockReportData_(clientName, reportType) {
-  var type = String(reportType || 'FIRST').toUpperCase() === 'MONTHLY' ? 'MONTHLY' : 'FIRST';
-  var recurring = type === 'MONTHLY' ? -9300 : -12800;
-  var optimized = type === 'MONTHLY' ? 5100 : 4600;
+  var type = 'DASHBOARD';
+  var recurring = -9300;
+  var optimized = 5100;
   return {
     client_name: String(clientName || 'Lumina Logic LLC'),
     report_type: type,
     tagline: 'Protecting your profits. Powering your business.',
     kpis: {
       recurring_net: recurring,
-      recurring_fees: type === 'MONTHLY' ? 2600 : 2200,
-      recurring_value: type === 'MONTHLY' ? -6700 : -10600,
+      recurring_fees: 2600,
+      recurring_value: -6700,
       optimized_net: optimized,
       unlock: optimized - recurring
     },
     actions: [
-      { card_name: type === 'MONTHLY' ? 'Ink Cash' : 'Chase Ink Preferred', issue_type: 'bleeding', title: 'This card is losing money', status: 'Review needed', action: 'Cancel or replace before the annual fee posts.', impact_usd: type === 'MONTHLY' ? 4300 : 6200, priority: 1 },
-      { card_name: type === 'MONTHLY' ? 'Amex Business Gold' : 'Amex Gold Business', issue_type: 'prebonus', title: 'Review needed', status: 'Bonus completion is not confirmed.', action: 'Complete required spend and confirm bonus status.', impact_usd: type === 'MONTHLY' ? 3700 : 4100, priority: 2 },
+      { card_name: 'Ink Cash', issue_type: 'bleeding', title: 'This card is losing money', status: 'Review needed', action: 'Cancel or replace before the annual fee posts.', impact_usd: 4300, priority: 1 },
+      { card_name: 'Amex Business Gold', issue_type: 'prebonus', title: 'Review needed', status: 'Bonus completion is not confirmed.', action: 'Complete required spend and confirm bonus status.', impact_usd: 3700, priority: 2 },
       { card_name: 'Venture X Business', issue_type: 'other', title: 'Review needed', status: 'Review needed.', action: 'Review this item and take the best next step.', impact_usd: 1350, priority: 3 }
     ],
     promotions: [],
     portfolio: {
       cards: [],
       totals: {
-        annual_fees: type === 'MONTHLY' ? 2600 : 2200,
-        value: type === 'MONTHLY' ? -6700 : -10600,
+        annual_fees: 2600,
+        value: -6700,
         net: recurring
       }
     },
-    generated_at: new Date().toISOString()
+    generated_at: new Date().toISOString(),
+    report_cycle_ym: Utilities.formatDate(new Date(), 'America/Los_Angeles', 'yyyy-MM')
   };
+}
+
+function getDashboardCycleYm_() {
+  return Utilities.formatDate(new Date(), 'America/Los_Angeles', 'yyyy-MM');
+}
+
+function normalizeClientKey_(clientName) {
+  var raw = String(clientName || 'client').toLowerCase();
+  var s = raw.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (!s) s = 'client';
+  return s.slice(0, 64);
+}
+
+function _snapshotPointerKey_(clientKey, cycleYm) {
+  return 'DASHBOARD_SNAPSHOT_PTR::' + String(clientKey || 'client') + '::' + String(cycleYm || '');
+}
+
+function ensureDashboardSnapshotsSheet_(ss) {
+  var sheet = _getSheetByName(ss, SHEET_DASHBOARD_SNAPSHOTS || 'Dashboard_Snapshots');
+  // Auto-create is required so deployments never depend on manual sheet setup.
+  if (!sheet) sheet = ss.insertSheet(SHEET_DASHBOARD_SNAPSHOTS || 'Dashboard_Snapshots');
+  if (sheet.getLastRow() < 1) {
+    sheet.getRange(1, 1, 1, 9).setValues([[
+      'row_id', 'client_key', 'client_name', 'report_cycle_ym', 'inputs_hash',
+      'snapshot_json', 'created_at', 'updated_at', 'snapshot_version'
+    ]]);
+  }
+  return sheet;
+}
+
+function computeInputsHash_(ss) {
+  var profile = getProfile(ss) || {};
+  var cards = getActiveCards(ss) || [];
+  var keyRows = cards.map(function(c) {
+    return {
+      card_name: c['Card Name'] || '',
+      spend_range: c['Current Annual Spend (Range)'] || '',
+      annual_fee: c['Annual Fee (USD)'] || c['Annual Fee'] || '',
+      status: c['Status'] || '',
+      assets_last_confirmed: c['assets_last_confirmed'] || ''
+    };
+  });
+  keyRows.sort(function(a, b) {
+    return String(a.card_name).localeCompare(String(b.card_name));
+  });
+  var payload = {
+    business_profile: profile,
+    card_assets: keyRows
+  };
+  var raw = JSON.stringify(payload);
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw, Utilities.Charset.UTF_8);
+  var out = '';
+  for (var i = 0; i < digest.length; i++) {
+    var x = (digest[i] + 256) % 256;
+    var hx = x.toString(16);
+    if (hx.length < 2) hx = '0' + hx;
+    out += hx;
+  }
+  return out;
+}
+
+function _newRowId_() {
+  return Utilities.getUuid();
+}
+
+function _findSnapshotRowByRowId_(sheet, rowId) {
+  if (!rowId) return null;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0] || '') === String(rowId)) {
+      var row = i + 2;
+      var r = sheet.getRange(row, 1, 1, 9).getValues()[0];
+      return { row: row, values: r };
+    }
+  }
+  return null;
+}
+
+function _findSnapshotRowByScan_(sheet, clientKey, cycleYm) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  var data = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+  for (var i = data.length - 1; i >= 0; i--) {
+    var r = data[i];
+    if (String(r[1] || '') === String(clientKey || '') && String(r[3] || '') === String(cycleYm || '')) {
+      return { row: i + 2, values: r };
+    }
+  }
+  return null;
+}
+
+function _isLegacyRowNumberPointer_(ptr) {
+  if (ptr == null || ptr === '') return false;
+  return /^\d+$/.test(String(ptr).trim());
+}
+
+function readDashboardSnapshot_(ss, clientKey, cycleYm, currentInputsHash) {
+  try {
+    var sheet = ensureDashboardSnapshotsSheet_(ss);
+    var ptrKey = _snapshotPointerKey_(clientKey, cycleYm);
+    var ptrVal = PropertiesService.getScriptProperties().getProperty(ptrKey);
+    // Row-number pointers are unstable under sorting or insertion. Using row_id for deterministic retrieval.
+    var hit = null;
+    if (_isLegacyRowNumberPointer_(ptrVal)) {
+      var legacyRow = Number(ptrVal);
+      if (!isNaN(legacyRow) && legacyRow >= 2 && legacyRow <= sheet.getLastRow()) {
+        var legacyVals = sheet.getRange(legacyRow, 1, 1, 9).getValues()[0];
+        if (legacyVals && legacyVals.length) {
+          if (!legacyVals[0]) {
+            legacyVals[0] = _newRowId_();
+            sheet.getRange(legacyRow, 1).setValue(legacyVals[0]);
+          }
+          hit = { row: legacyRow, values: legacyVals };
+          PropertiesService.getScriptProperties().setProperty(ptrKey, String(legacyVals[0]));
+        }
+      }
+    } else {
+      hit = _findSnapshotRowByRowId_(sheet, ptrVal);
+    }
+    if (!hit) {
+      hit = _findSnapshotRowByScan_(sheet, clientKey, cycleYm);
+      if (hit) {
+        var repairedRowId = String(hit.values[0] || '');
+        if (!repairedRowId) {
+          repairedRowId = _newRowId_();
+          sheet.getRange(hit.row, 1).setValue(repairedRowId);
+          hit.values[0] = repairedRowId;
+        }
+        PropertiesService.getScriptProperties().setProperty(ptrKey, repairedRowId);
+      }
+    }
+    if (!hit) return null;
+    var v = hit.values;
+    var dto = JSON.parse(String(v[5] || '{}'));
+    var savedHash = String(v[4] || '');
+    var changed = !!currentInputsHash && !!savedHash && savedHash !== currentInputsHash;
+    dto.inputs_hash = savedHash;
+    dto.client_key = clientKey;
+    dto.snapshot_row_id = String(v[0] || '');
+    dto.inputs_changed_since_snapshot = changed;
+    if (changed) {
+      dto.dashboard = dto.dashboard || {};
+      dto.dashboard.system_status = dto.dashboard.system_status || {};
+      dto.dashboard.system_status.inputs_changed_banner = 'Inputs changed since last snapshot. Regenerate to update.';
+    }
+    return dto;
+  } catch (e) {
+    Logger.log('[DashboardSnapshot][read] failed: ' + (e && e.message ? e.message : e));
+    return null;
+  }
+}
+
+function writeDashboardSnapshot_(ss, clientKey, clientName, cycleYm, inputsHash, dto) {
+  try {
+    var sheet = ensureDashboardSnapshotsSheet_(ss);
+    var now = new Date();
+    var ptrKey = _snapshotPointerKey_(clientKey, cycleYm);
+    var ptrVal = PropertiesService.getScriptProperties().getProperty(ptrKey);
+    var hit = _isLegacyRowNumberPointer_(ptrVal)
+      ? null
+      : _findSnapshotRowByRowId_(sheet, ptrVal);
+    if (!hit) hit = _findSnapshotRowByScan_(sheet, clientKey, cycleYm);
+    var payload = JSON.stringify(dto || {});
+    if (hit) {
+      var existingRowId = String(hit.values[0] || '');
+      if (!existingRowId) existingRowId = _newRowId_();
+      sheet.getRange(hit.row, 1, 1, 9).setValues([[
+        existingRowId, clientKey, clientName, cycleYm, inputsHash, payload,
+        hit.values[6] || now, now, 'v2'
+      ]]);
+      PropertiesService.getScriptProperties().setProperty(ptrKey, existingRowId);
+      return existingRowId;
+    }
+    var newRow = Math.max(2, sheet.getLastRow() + 1);
+    var newRowId = _newRowId_();
+    sheet.getRange(newRow, 1, 1, 9).setValues([[
+      newRowId, clientKey, clientName, cycleYm, inputsHash, payload, now, now, 'v2'
+    ]]);
+    PropertiesService.getScriptProperties().setProperty(ptrKey, newRowId);
+    return newRowId;
+  } catch (e) {
+    Logger.log('[DashboardSnapshot][write] failed: ' + (e && e.message ? e.message : e));
+    return null;
+  }
+}
+
+function ensureSystemTrackingSheet_(ss) {
+  var sheet = _getSheetByName(ss, SHEET_SYSTEM_TRACKING || 'System_Tracking');
+  if (!sheet) sheet = ss.insertSheet(SHEET_SYSTEM_TRACKING || 'System_Tracking');
+  if (sheet.getLastRow() < 1) {
+    sheet.getRange(1, 1, 1, 8).setValues([[
+      'client_key', 'card_name', 'event_type', 'first_seen_ym', 'last_seen_ym',
+      'active_streak_months', 'action_completed_at', 'tracking_updated_at'
+    ]]);
+  }
+  return sheet;
+}
+
+function _prevCycleYm_(cycleYm) {
+  var p = String(cycleYm || '').split('-');
+  if (p.length !== 2) return '';
+  var y = Number(p[0]), m = Number(p[1]);
+  if (isNaN(y) || isNaN(m)) return '';
+  var d = new Date(y, m - 1, 1);
+  d.setMonth(d.getMonth() - 1);
+  return Utilities.formatDate(d, 'America/Los_Angeles', 'yyyy-MM');
+}
+
+function _trackingIndex_(rows) {
+  var idx = {};
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    idx[String(r.client_key || '') + '|' + String(r.card_name || '').toLowerCase() + '|' + String(r.event_type || '').toLowerCase()] = i;
+  }
+  return idx;
+}
+
+function updateSystemTracking_(ss, clientKey, cycleYm, actions) {
+  var sheet = ensureSystemTrackingSheet_(ss);
+  var lastRow = sheet.getLastRow();
+  var data = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 8).getValues() : [];
+  var rows = data.map(function(r) {
+    return {
+      client_key: String(r[0] || ''),
+      card_name: String(r[1] || ''),
+      event_type: String(r[2] || ''),
+      first_seen_ym: String(r[3] || ''),
+      last_seen_ym: String(r[4] || ''),
+      active_streak_months: Number(r[5] || 0),
+      action_completed_at: r[6] || '',
+      tracking_updated_at: r[7] || ''
+    };
+  });
+  var idx = _trackingIndex_(rows);
+  var prevYm = _prevCycleYm_(cycleYm);
+  var now = new Date();
+  var enriched = [];
+  var seenKeys = {};
+  var list = Array.isArray(actions) ? actions : [];
+  for (var i = 0; i < list.length; i++) {
+    var a = list[i] || {};
+    var cardName = String(a.card_name || 'Card');
+    var eventType = String(a.issue_type || 'Action');
+    var k = String(clientKey || '') + '|' + cardName.toLowerCase() + '|' + eventType.toLowerCase();
+    seenKeys[k] = true;
+    var pos = idx.hasOwnProperty(k) ? idx[k] : -1;
+    var rec = pos >= 0 ? rows[pos] : {
+      client_key: String(clientKey || ''),
+      card_name: cardName,
+      event_type: eventType,
+      first_seen_ym: cycleYm,
+      last_seen_ym: cycleYm,
+      active_streak_months: 0,
+      action_completed_at: '',
+      tracking_updated_at: now
+    };
+    var wasConsecutive = rec.last_seen_ym === prevYm;
+    rec.last_seen_ym = cycleYm;
+    if (!rec.first_seen_ym) rec.first_seen_ym = cycleYm;
+    rec.active_streak_months = wasConsecutive ? Math.max(1, Number(rec.active_streak_months || 0) + 1) : 1;
+    rec.tracking_updated_at = now;
+    if (pos >= 0) rows[pos] = rec; else rows.push(rec);
+    // Never fabricate time text when tracking is unavailable; only add after persisted lookup/update.
+    var pending = rec.active_streak_months > 1 ? ('Pending for ' + rec.active_streak_months + ' months') : '';
+    a.time_context = pending || '';
+    if (pending) a.status = pending + (a.status ? ('. ' + a.status) : '');
+    enriched.push(a);
+  }
+  var values = rows.map(function(r) {
+    return [r.client_key, r.card_name, r.event_type, r.first_seen_ym, r.last_seen_ym, r.active_streak_months, r.action_completed_at, r.tracking_updated_at];
+  });
+  if (sheet.getLastRow() > 1) sheet.getRange(2, 1, sheet.getLastRow() - 1, 8).clearContent();
+  if (values.length) sheet.getRange(2, 1, values.length, 8).setValues(values);
+  return enriched;
+}
+
+function buildDataHealth_(ss, model, cycleYm) {
+  var staleDays = (DECISION_CONFIG && DECISION_CONFIG.STALE_DAYS) ? Number(DECISION_CONFIG.STALE_DAYS) : 45;
+  var marketFreshDays = (DECISION_CONFIG && DECISION_CONFIG.MARKET_FRESH_DAYS) ? Number(DECISION_CONFIG.MARKET_FRESH_DAYS) : 120;
+  var cards = (model && model.cardsNormalized) || [];
+  var latestAssets = null;
+  for (var i = 0; i < cards.length; i++) {
+    var d = cards[i] && cards[i].assetsLastConfirmed ? new Date(cards[i].assetsLastConfirmed) : null;
+    if (d && !isNaN(d.getTime()) && (!latestAssets || d.getTime() > latestAssets.getTime())) latestAssets = d;
+  }
+  var profile = getProfile(ss) || {};
+  var pRaw = profile.business_profile_last_confirmed || profile.Business_Profile_Last_Confirmed || '';
+  var profileDate = pRaw ? new Date(pRaw) : null;
+  if (profileDate && isNaN(profileDate.getTime())) profileDate = null;
+  var now = new Date();
+  var assetsAge = latestAssets ? Math.floor((now.getTime() - latestAssets.getTime()) / 86400000) : null;
+  var profileAge = profileDate ? Math.floor((now.getTime() - profileDate.getTime()) / 86400000) : null;
+  var customerStale = (assetsAge != null && assetsAge > staleDays) || (profileAge != null && profileAge > staleDays);
+
+  var promos = (model && (model.promotions || model.topPromos)) || [];
+  var staleOffers = 0;
+  for (var j = 0; j < promos.length; j++) {
+    var lu = promos[j] && promos[j].bonus_last_updated ? new Date(promos[j].bonus_last_updated) : null;
+    if (!lu || isNaN(lu.getTime())) continue;
+    var age = Math.floor((now.getTime() - lu.getTime()) / 86400000);
+    if (age > marketFreshDays) staleOffers++;
+  }
+
+  return {
+    report_cycle_ym: cycleYm,
+    stale_days_threshold: staleDays,
+    market_fresh_days_threshold: marketFreshDays,
+    business_profile_days_since_confirmed: profileAge,
+    assets_days_since_confirmed: assetsAge,
+    customer_data_status: customerStale ? 'Outdated' : 'Up to date',
+    market_data_status: staleOffers > 0 ? 'Offer data may be outdated' : 'Fresh',
+    caution: customerStale ? 'Decisions may be inaccurate until data is refreshed.' : ''
+  };
+}
+
+function buildDashboardDto_(ss, monthlyModel, clientName, cycleYm) {
+  var clientKey = normalizeClientKey_(clientName);
+  var dto = (typeof buildReportDTOFromDashboardModel_ === 'function')
+    ? buildReportDTOFromDashboardModel_(monthlyModel, { clientName: clientName, reportCycleYm: cycleYm })
+    : getMockReportData_(clientName, 'DASHBOARD');
+  dto.report_type = 'DASHBOARD';
+  dto.report_cycle_ym = cycleYm;
+
+  var dataHealth = buildDataHealth_(ss, monthlyModel, cycleYm);
+  var actions = updateSystemTracking_(ss, clientKey, cycleYm, dto.actions || []);
+  dto.actions = actions;
+  var strategySnapshot = {
+    scenario_comparison: dto.scenario_comparison || { do_nothing: {}, act: {} },
+    note: 'Strategy remains valid under current structure.'
+  };
+  var recurringNet = dto && dto.kpis ? Number(dto.kpis.recurring_net || 0) : 0;
+  var headline = dataHealth.customer_data_status === 'Outdated'
+    ? 'Data Update Required'
+    : (recurringNet < 0 ? 'Portfolio Losing Money' : (actions.length ? 'Action Needed' : 'System Stable'));
+  var subline = '12-month projected recurring net: ' + formatUsdForWeb_(recurringNet);
+  if (dataHealth.customer_data_status === 'Outdated') subline += '. Estimates based on last confirmed data.';
+
+  var dashboard = {
+    system_status: { headline: headline, subline: subline },
+    strategy_snapshot: strategySnapshot,
+    card_actions: actions,
+    opportunity_windows: dto.promotions || [],
+    data_health: dataHealth
+  };
+  dto.dashboard = dashboard;
+  dto.client_key = clientKey;
+  return dto;
 }
 
 function pickFirstNonEmpty_(arr, fallback) {
@@ -333,11 +683,11 @@ function adaptFirstModelToBeautifulDTO_(firstModel, ctx) {
 
   var actionsRaw = safeSlice_(pickFirstNonEmpty_([model.priorityActions, model.items, model.focusItems], []), 6);
   var actions = sortActionsForBeautiful_(actionsRaw.map(function (x) { return mapActionForBeautiful_(x, 'LOW'); }));
-  if (!actions.length) actions = getMockReportData_(ctx.clientName, 'FIRST').actions;
+  if (!actions.length) actions = getMockReportData_(ctx.clientName, 'DASHBOARD').actions;
 
   return {
     client_name: String(ctx.clientName || 'Lumina Logic LLC'),
-    report_type: 'FIRST',
+    report_type: 'DASHBOARD',
     tagline: 'Protecting your profits. Powering your business.',
     kpis: kpis,
     actions: actions.slice(0, 6),
@@ -354,10 +704,10 @@ function adaptMonthlyModelToBeautifulDTO_(monthlyModel, ctx) {
   var kpis = resolveKpiSet_(recurringRaw, optimizedRaw);
   var actionsRaw = safeSlice_(pickFirstNonEmpty_([model.itemsNeedingAttention, model.items, model.actions, model.focusItems], []), 6);
   var actions = sortActionsForBeautiful_(actionsRaw.map(function (x) { return mapActionForBeautiful_(x, 'LOW'); }));
-  if (!actions.length) actions = getMockReportData_(ctx.clientName, 'MONTHLY').actions;
+  if (!actions.length) actions = getMockReportData_(ctx.clientName, 'DASHBOARD').actions;
   return {
     client_name: String(ctx.clientName || 'Lumina Logic LLC'),
-    report_type: 'MONTHLY',
+    report_type: 'DASHBOARD',
     tagline: 'Protecting your profits. Powering your business.',
     kpis: kpis,
     actions: actions.slice(0, 6),
@@ -384,10 +734,10 @@ function buildBeautifulDataFromMonthlyModel_(monthlyModel, clientName) {
 function doGet(e) {
   try {
     var view = 'beautiful';
-    var type = 'FIRST';
+    var type = 'DASHBOARD';
     var autoRun = '';
     if (e && e.parameter && e.parameter.view) view = String(e.parameter.view).toLowerCase();
-    if (e && e.parameter && e.parameter.type) type = String(e.parameter.type).toUpperCase() === 'MONTHLY' ? 'MONTHLY' : 'FIRST';
+    if (e && e.parameter && e.parameter.type) type = 'DASHBOARD';
     if (e && e.parameter && e.parameter.autorun) autoRun = String(e.parameter.autorun);
     Logger.log('[WebApp][doGet] view=%s type=%s autorun=%s build=%s', view, type, autoRun, BUILD_INFO_);
 
@@ -413,38 +763,47 @@ function doGet(e) {
 
 function getBeautifulReportData(clientName, type) {
   return safeRun_(function () {
-    var data = generateReportDataForWeb(clientName, type);
-    Logger.log('[WebApp][getBeautifulReportData] source=real type=%s hasActions=%s', String(type || 'FIRST'), !!(data && data.actions && data.actions.length));
+    var forceRegenerate = false;
+    if (type && typeof type === 'object') forceRegenerate = !!type.force_regenerate;
+    var data = generateReportDataForWeb(clientName, 'DASHBOARD', forceRegenerate);
+    Logger.log('[WebApp][getBeautifulReportData] source=real type=%s hasActions=%s', 'DASHBOARD', !!(data && data.actions && data.actions.length));
     return data;
   }, function () {
-    var t = String(type || 'FIRST').toUpperCase();
-    Logger.log('[WebApp][getBeautifulReportData] source=fallback type=%s', t);
-    return getMockReportData_(clientName, t === 'MONTHLY' ? 'MONTHLY' : 'FIRST');
+    Logger.log('[WebApp][getBeautifulReportData] source=fallback type=%s', 'DASHBOARD');
+    return getMockReportData_(clientName, 'DASHBOARD');
   });
 }
 
-function generateReportDataForWeb(clientName, type) {
+function generateReportDataForWeb(clientName, type, forceRegenerate) {
   return safeRun_(function () {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var mode = String(type || 'FIRST').toUpperCase() === 'MONTHLY' ? 'MONTHLY' : 'FIRST';
     var cname = pickClientNameForWeb_(ss, clientName || 'Lumina Logic LLC');
-    if (mode === 'MONTHLY') {
-      var monthlyModel = safeRun_(function () { return runMonthlyReport(ss); }, function () { return localMonthlyModel_(); });
-      if (typeof buildReportDTOFromMonthlyModel_ === 'function') return buildReportDTOFromMonthlyModel_(monthlyModel, { clientName: cname });
-      return getMockReportData_(cname, 'MONTHLY');
+    var clientKey = normalizeClientKey_(cname);
+    var cycleYm = getDashboardCycleYm_();
+    var inputsHash = computeInputsHash_(ss);
+    // Cycle stability contract:
+    // - Same cycle (YYYY-MM, America/Los_Angeles): reuse persisted snapshot by default.
+    // - Regenerate only on new cycle or explicit force_regenerate=true.
+    if (!forceRegenerate) {
+      var snap = readDashboardSnapshot_(ss, clientKey, cycleYm, inputsHash);
+      if (snap) return snap;
     }
-    var firstModel = safeRun_(function () { return runFirstReport(ss); }, function () { return localFirstModel_(); });
-    if (typeof buildReportDTOFromFirstModel_ === 'function') return buildReportDTOFromFirstModel_(firstModel, { clientName: cname });
-    return getMockReportData_(cname, 'FIRST');
+    var model = safeRun_(function () { return runMonthlyReport(ss); }, function () { return localMonthlyModel_(); });
+    var dto = buildDashboardDto_(ss, model, cname, cycleYm);
+    dto.client_key = clientKey;
+    dto.inputs_hash = inputsHash;
+    if (dto.dashboard && dto.dashboard.system_status) dto.dashboard.system_status.inputs_changed_banner = '';
+    var rowId = writeDashboardSnapshot_(ss, clientKey, cname, cycleYm, inputsHash, dto);
+    dto.snapshot_row_id = String(rowId || '');
+    return dto;
   }, function () {
-    var mode2 = String(type || 'FIRST').toUpperCase() === 'MONTHLY' ? 'MONTHLY' : 'FIRST';
-    return getMockReportData_(clientName, mode2 === 'MONTHLY' ? 'MONTHLY' : 'FIRST');
+    return getMockReportData_(clientName, 'DASHBOARD');
   });
 }
 
 function generateReportForWeb(mode) {
   return safeRun_(function () {
-    var t = String(mode || 'FIRST').toUpperCase() === 'MONTHLY' ? 'MONTHLY' : 'FIRST';
+    var t = 'DASHBOARD';
     Logger.log('[WebApp][generateReportForWeb] start type=%s', t);
     var out = generatePdfForWeb_(t) || {};
     out.ok = true;
@@ -453,14 +812,14 @@ function generateReportForWeb(mode) {
     Logger.log('[WebApp][generateReportForWeb] done type=%s ok=%s hasFileUrl=%s forcePreviewDownload=%s fields=%s', t, out.ok, !!out.fileUrl, out.forcePreviewDownload, Object.keys(out).join(','));
     return out;
   }, function (e) {
-    var t2 = String(mode || 'FIRST').toUpperCase() === 'MONTHLY' ? 'MONTHLY' : 'FIRST';
+    var t2 = 'DASHBOARD';
     var out = {
       ok: true,
       type: t2,
       fileUrl: '',
       forcePreviewDownload: true,
       message: t2 + ' fallback success: ' + (e && e.message ? String(e.message) : 'unknown'),
-      mockData: getMockReportData_('Lumina Logic LLC', t2)
+      mockData: getMockReportData_('Lumina Logic LLC', 'DASHBOARD')
     };
     Logger.log('[WebApp][generateReportForWeb] fallback type=%s ok=%s hasFileUrl=%s forcePreviewDownload=%s', t2, out.ok, !!out.fileUrl, out.forcePreviewDownload);
     return out;
@@ -468,28 +827,30 @@ function generateReportForWeb(mode) {
 }
 
 function generateFirstReportForWeb() {
-  return generateReportForWeb('FIRST');
+  Logger.log('[DEPRECATED] generateFirstReportForWeb routed to DASHBOARD');
+  return generateReportForWeb('DASHBOARD');
 }
 
 function generateMonthlyReportForWeb() {
-  return generateReportForWeb('MONTHLY');
+  Logger.log('[DEPRECATED] generateMonthlyReportForWeb routed to DASHBOARD');
+  return generateReportForWeb('DASHBOARD');
 }
 
 function generateFirstLegacyPdfForWeb() {
-  Logger.log('[WebApp][generateFirstLegacyPdfForWeb] start');
-  return generatePdfForWeb_('FIRST');
+  Logger.log('[DEPRECATED] generateFirstLegacyPdfForWeb routed to DASHBOARD');
+  return generatePdfForWeb_('DASHBOARD');
 }
 
 function generateMonthlyLegacyPdfForWeb() {
-  Logger.log('[WebApp][generateMonthlyLegacyPdfForWeb] start');
-  return generatePdfForWeb_('MONTHLY');
+  Logger.log('[DEPRECATED] generateMonthlyLegacyPdfForWeb routed to DASHBOARD');
+  return generatePdfForWeb_('DASHBOARD');
 }
 
 function generatePdfForWeb_(mode) {
   return safeRun_(function () {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var reportsSheet = safeRun_(function () { return _getSheetByName(ss, SHEET_REPORTS || 'Debug'); }, null);
-    var isMonthly = String(mode) === 'MONTHLY';
+    var dashboardMode = 'DASHBOARD';
 
     if (reportsSheet) {
       safeRun_(function () { reportsSheet.getRange('B3').setValue('RUNNING'); }, null);
@@ -497,28 +858,30 @@ function generatePdfForWeb_(mode) {
     }
 
     var usedFallbackModel = false;
-    var model = safeRun_(function () {
-      return isMonthly ? runMonthlyReport(ss) : runFirstReport(ss);
+    var cname = pickClientNameForWeb_(ss, 'Lumina Logic LLC');
+    var cycleYm = getDashboardCycleYm_();
+    var dto = safeRun_(function () {
+      return generateReportDataForWeb(cname, dashboardMode, false);
     }, function () {
       usedFallbackModel = true;
-      return isMonthly ? localMonthlyModel_() : localFirstModel_();
+      return getMockReportData_(cname, dashboardMode);
     });
 
     var usedFallbackPdf = false;
     var pdfRes = safeRun_(function () {
-      return isMonthly ? generateMonthlyPdf(ss, model) : generateFirstPdf(ss, model);
+      return (typeof generateDashboardPdf === 'function')
+        ? generateDashboardPdf(ss, dto)
+        : { fileUrl: '', message: 'Dashboard generated in local fallback mode.' };
     }, function () {
       usedFallbackPdf = true;
-      return isMonthly
-        ? { fileUrl: '', message: 'Monthly generated in local fallback mode.' }
-        : { fileUrl: '', message: 'First generated in local fallback mode.' };
+      return { fileUrl: '', message: 'Dashboard generated in local fallback mode.' };
     }) || {};
 
     if (reportsSheet) {
-      safeRun_(function () { reportsSheet.getRange('B5').setValue((isMonthly ? 'Monthly' : 'First') + ' PDF: ' + (pdfRes.fileUrl || 'fallback-no-url')); }, null);
+      safeRun_(function () { reportsSheet.getRange('B5').setValue('Dashboard PDF: ' + (pdfRes.fileUrl || 'fallback-no-url')); }, null);
       safeRun_(function () { reportsSheet.getRange('B3').setValue('DONE'); }, null);
       safeRun_(function () { reportsSheet.getRange('E1').setValue(new Date()); }, null);
-      safeRun_(function () { reportsSheet.getRange('E3').setValue(isMonthly ? 'MONTHLY' : 'FIRST'); }, null);
+      safeRun_(function () { reportsSheet.getRange('E3').setValue('DASHBOARD'); }, null);
       if (!pdfRes.fileUrl) {
         safeRun_(function () {
           reportsSheet.getRange('B4').setValue(
@@ -531,26 +894,23 @@ function generatePdfForWeb_(mode) {
 
     var out = {
       ok: true,
-      type: isMonthly ? 'MONTHLY' : 'FIRST',
+      type: 'DASHBOARD',
       fileUrl: pdfRes.fileUrl ? String(pdfRes.fileUrl) : '',
       forcePreviewDownload: !(pdfRes && pdfRes.fileUrl),
       message: pdfRes.message ? String(pdfRes.message) : 'Report generated successfully.',
-      mockData: isMonthly
-        ? getMockReportData_('Lumina Logic LLC', 'MONTHLY')
-        : getMockReportData_('Lumina Logic LLC', 'FIRST')
+      report_cycle_ym: cycleYm,
+      mockData: getMockReportData_('Lumina Logic LLC', 'DASHBOARD')
     };
-    Logger.log('[WebApp][generatePdfForWeb_] mode=%s modelPath=%s pdfPath=%s fileUrlEmpty=%s', isMonthly ? 'MONTHLY' : 'FIRST', usedFallbackModel ? 'fallback' : 'main', usedFallbackPdf ? 'fallback' : 'main', !out.fileUrl);
+    Logger.log('[WebApp][generatePdfForWeb_] mode=%s modelPath=%s pdfPath=%s fileUrlEmpty=%s', 'DASHBOARD', usedFallbackModel ? 'fallback' : 'main', usedFallbackPdf ? 'fallback' : 'main', !out.fileUrl);
     return out;
   }, function (e) {
     var out = {
       ok: true,
-      type: String(mode) === 'MONTHLY' ? 'MONTHLY' : 'FIRST',
+      type: 'DASHBOARD',
       fileUrl: '',
       forcePreviewDownload: true,
       message: 'Fallback completed: ' + (e && e.message ? String(e.message) : 'unknown'),
-      mockData: String(mode) === 'MONTHLY'
-        ? getMockReportData_('Lumina Logic LLC', 'MONTHLY')
-        : getMockReportData_('Lumina Logic LLC', 'FIRST')
+      mockData: getMockReportData_('Lumina Logic LLC', 'DASHBOARD')
     };
     Logger.log('[WebApp][generatePdfForWeb_] hard-fallback mode=%s err=%s', out.type, e && e.message ? e.message : String(e));
     return out;
