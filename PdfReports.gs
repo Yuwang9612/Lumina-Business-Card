@@ -11,7 +11,7 @@
 var TEMPLATE_MONTHLY_DOC_ID = '1ePF92h107-Kl9EBQxyY6iR3diM1_VLFWu1bocsyFdMM';
 var TEMPLATE_FIRST_DOC_ID = '1IEAthHEVQYVqmvscKeuvwNd2lVCH4M3QwJwmhfypCAo';
 var TEMPLATE_DASHBOARD_DOC_ID = '';
-var DASHBOARD_TEMPLATE_PATH = 'docs/templates/DASHBOARD_TEMPLATE.md';
+var DASHBOARD_TEMPLATE_PATH = 'docs/25_templates/DASHBOARD_TEMPLATE.md';
 var OUTPUT_FOLDER_ID = '';
 var BRAND_LOGO_FILE_ID = '';
 var BRAND_TAGLINE = 'Protecting your profits. Powering your business.';
@@ -1447,3 +1447,4 @@ function inferSeverityTag_(it) {
   if (title.indexOf('spending role should be adjusted') >= 0) return 'LOW';
   return mapIssueTypeToLevel_(typeRaw);
 }
+

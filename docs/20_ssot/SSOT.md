@@ -113,8 +113,8 @@ This SSoT governs:
 
 Report layout structure is governed separately by:
 
-- docs/templates/FIRST_TEMPLATE.md
-- docs/templates/MONTHLY_TEMPLATE.md
+- docs/25_templates/FIRST_TEMPLATE.md
+- docs/25_templates/MONTHLY_TEMPLATE.md
 
 Templates may define structure and presentation order but must not redefine calculation semantics or thresholds.
 
@@ -486,8 +486,8 @@ Input may allow aliases but must normalize before storage and output.
 
 FIRST and MONTHLY report structure must follow:
 
-- `docs/templates/FIRST_TEMPLATE.md`
-- `docs/templates/MONTHLY_TEMPLATE.md`
+- `docs/25_templates/FIRST_TEMPLATE.md`
+- `docs/25_templates/MONTHLY_TEMPLATE.md`
 
 Templates define:
 
@@ -708,3 +708,4 @@ correct monetary formatting
 
 **End of Document**  
 Lumina Credit Reward — SSoT v1.0
+
