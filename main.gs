@@ -9,7 +9,11 @@ function doGetLegacy_(e) {
 function onOpen() {
   var menu = SpreadsheetApp.getUi()
     .createMenu('Card Profit Watch')
-    .addItem('Customer Credit Card Dashboard', 'generateDashboardReport');
+    .addItem('Customer Credit Card Dashboard', 'generateDashboardReport')
+    .addSeparator()
+    .addItem('Set Admin View', 'setupAdminView')
+    .addItem('Set Customer View', 'setupCustomerView')
+    .addItem('Admin: Migrate Core Sheets To Production', 'migrateCoreSheetsToProduction');
   menu.addToUi();
 }
 
