@@ -57,11 +57,17 @@ function _tryProtectSheet_(ss, sheetName) {
 function _assertAdminOnly_() {
   var me = '';
   try { me = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase(); } catch (e) {}
+  if (!me) {
+    try { me = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase(); } catch (e3) {}
+  }
   if (!me) throw new Error('Admin check failed: active user email unavailable.');
   var props = PropertiesService.getScriptProperties();
   var raw = String(props.getProperty('ADMIN_EMAILS') || '').trim();
   if (!raw) return true; // If not configured, keep current behavior.
-  var allowed = raw.split(',').map(function(x){ return String(x || '').trim().toLowerCase(); }).filter(function(x){ return !!x; });
+  var allowed = raw
+    .split(/[,\n;，；]/)
+    .map(function(x){ return String(x || '').trim().toLowerCase().replace(/^["']|["']$/g, ''); })
+    .filter(function(x){ return !!x; });
   if (allowed.indexOf(me) === -1) throw new Error('Only admins can run this action.');
   return true;
 }
@@ -90,6 +96,7 @@ function migrateCoreSheetsToProduction() {
 }
 
 function setupCustomerView() {
+  _assertAdminOnly_();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var allTabs = _allSheetNames_(ss);
   var visible = {};
@@ -133,6 +140,7 @@ function setupCustomerView() {
 }
 
 function setupAdminView() {
+  _assertAdminOnly_();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var showTabs = _allSheetNames_(ss);
   var warns = [];

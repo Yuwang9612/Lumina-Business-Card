@@ -60,9 +60,15 @@ function generateFirstPdf(ss, firstModel) {
 }
 
 function resolveTemplateId_(type) {
-  var id = type === 'first' ? TEMPLATE_FIRST_DOC_ID : TEMPLATE_MONTHLY_DOC_ID;
+  var key = type === 'first' ? 'TEMPLATE_FIRST_DOC_ID' : 'TEMPLATE_MONTHLY_DOC_ID';
+  var propId = '';
+  try {
+    propId = String(PropertiesService.getScriptProperties().getProperty(key) || '').trim();
+  } catch (e) {}
+  var fallbackId = type === 'first' ? TEMPLATE_FIRST_DOC_ID : TEMPLATE_MONTHLY_DOC_ID;
+  var id = propId || fallbackId;
   if (!id || id.indexOf('REPLACE_WITH_') === 0) {
-    throw new Error('Template ID not configured: ' + (type === 'first' ? 'TEMPLATE_FIRST_DOC_ID' : 'TEMPLATE_MONTHLY_DOC_ID'));
+    throw new Error('Template ID not configured: ' + key);
   }
   return id;
 }

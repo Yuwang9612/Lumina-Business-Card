@@ -54,7 +54,10 @@
             <div class="meta"><span>Type: <strong id="reportTypeLabel">FIRST</strong></span><span>Generated: <strong id="generatedAt">-</strong></span></div>
           </div>
           <div>
-            <div class="toolbar"><button id="downloadBtn" class="btn">Download PDF</button></div>
+            <div class="toolbar">
+            <button id="downloadBtn" class="btn">Download PDF</button>
+            <button id="sendEmailBtn" class="btn">Send Email</button>
+          </div>
             <div id="statusText" class="status">Ready</div>
           </div>
         </div>
@@ -201,6 +204,118 @@
       }
       function buildEmailBody(dto){ var lines=[]; lines.push(dto.client_name+' - '+dto.report_type+' - Generated '+formatIso(dto.generated_at)); lines.push(''); lines.push('12-month numbers'); lines.push('- Keep current: '+formatUsd(dto.kpis.recurring_net)); lines.push('- After fixes: '+formatUsdOrDash(dto.kpis.optimized_net)); lines.push('- Unlock: '+formatUsdOrDash(dto.kpis.unlock)); lines.push(''); lines.push('Top actions'); var a=(dto.actions||[]).slice(0,3); if(!a.length) lines.push('- No urgent actions.'); else a.forEach(function(x,i){ lines.push((i+1)+'. P'+(x.priority==null?'-':String(x.priority))+' '+(x.card_name||'Card')+' - '+(x.action||'Review')); }); lines.push(''); lines.push('Portfolio totals: Fees '+formatUsd(dto.portfolio.totals.annual_fees||0)+' | Value '+formatUsd(dto.portfolio.totals.value||0)+' | Net '+formatUsd(dto.portfolio.totals.net||0)); lines.push(''); lines.push('Promotions'); var p=(dto.promotions||[]).slice(0,3); if(!p.length) lines.push('- No active promotions.'); else p.forEach(function(x,i){ lines.push((i+1)+'. '+(x.promo_headline||x.card_name||'Promotion')+' (end: '+(x.promo_end_date||'-')+')'); }); lines.push(''); lines.push('12-month net = estimated value - annual fees (recurring only).'); lines.push('Optimized net and unlock are estimates based on suggested actions.'); return lines.join('\\n'); }
       function copyEmailBody(){ var dto=LAST_RENDERED_DATA||normalizeDto(FALLBACK_REPORT_DATA), text=buildEmailBody(dto); if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(function(){ setStatus('Email body copied'); }).catch(function(e){ showDebug('copy failed',e); setStatus('Copy failed'); }); return; } var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); setStatus('Email body copied'); }catch(e){ showDebug('copy failed',e); setStatus('Copy failed'); } document.body.removeChild(ta); }
+      
+      // HTML body generator for email (used by sendEmail)
+      function buildEmailHtml(dto){
+        // clone reportRoot so we can scrub interactive bits without altering the page
+        var root = document.getElementById('reportRoot');
+        if(!root){
+          return '<pre>' + safeText(buildEmailBody(dto)) + '</pre>';
+        }
+        var clone = root.cloneNode(true);
+        // remove toolbar and status bars if present
+        var tb = clone.querySelector('.toolbar');
+        if(tb) tb.parentNode.removeChild(tb);
+        var st = clone.querySelector('#statusText');
+        if(st) st.parentNode.removeChild(st);
+        // wrap in a container suitable for email (match dialog width)
+        var container = document.createElement('div');
+        container.style.width = '100%';
+        container.style.maxWidth = '1100px';
+        container.style.margin = '0 auto';
+        // ensure background color on outer wrapper for email clients
+        container.style.background = '#f4f7fb';
+        container.appendChild(clone);
+        // convert all hero grids to tables for consistent email layout
+        Array.from(clone.querySelectorAll('.hero-grid')).forEach(function(heroGrid){
+          var cols = Array.from(heroGrid.children);
+          var tbl = document.createElement('table');
+          tbl.style.width='100%';
+          tbl.style.borderCollapse='collapse';
+          var tr = document.createElement('tr');
+          cols.forEach(function(col){
+            var td = document.createElement('td');
+            td.style.verticalAlign='middle';
+            td.style.padding='5px';
+            td.style.textAlign='center';
+            var card = col.cloneNode(true);
+            // remove explicit width to avoid full-row stacking
+            card.style.width = 'auto';
+            card.style.maxWidth = '100%';
+            // ensure color for negative values: look for .hero-value or .neg
+            var hv = card.querySelector('.hero-value');
+            if(hv && /^\s*-/.test(hv.textContent)){
+              hv.style.color = '#b91c1c';
+            }
+            var neg = card.querySelector('.neg');
+            if(neg){ neg.style.color = '#b91c1c'; }
+            td.appendChild(card);
+            tr.appendChild(td);
+          });
+          tbl.appendChild(tr);
+          heroGrid.parentNode.replaceChild(tbl, heroGrid);
+        });
+        // inline computed styles for all elements to preserve layout in clumsy email clients
+        Array.from(clone.querySelectorAll('*')).forEach(function(el){
+          var cs = window.getComputedStyle(el);
+          // list of properties we care about (extend as needed)
+          ['display','position','width','min-width','max-width','height','padding','margin','font-size','font-weight','color','background','background-color','border','border-radius','box-shadow','text-align','vertical-align','flex','flex-direction','justify-content','align-items','table-layout','border-collapse'].forEach(function(prop){
+            try{ var v = cs.getPropertyValue(prop); if(v) el.style.setProperty(prop, v, 'important'); }catch(e){}
+          });
+        });
+        // ensure promotion items still look like cards
+        Array.from(clone.querySelectorAll('.item')).forEach(function(el){
+          el.style.display='block';
+          el.style.background='#fff';
+          el.style.border='1px solid #dbe3ef';
+          el.style.borderRadius='10px';
+          el.style.padding='12px';
+          el.style.marginBottom='10px';
+        });
+        // reapply red color for negative hero values after style copy
+        Array.from(clone.querySelectorAll('.hero-value')).forEach(function(el){
+          if(/^\s*-/.test(el.textContent)) el.style.color = '#b91c1c';
+        });
+        // additional manual panel styling (redundant but safe)
+        var panels = clone.querySelectorAll('.panel');
+        panels.forEach(function(el){
+          el.style.background = '#fff';
+          el.style.border = '1px solid #dbe3ef';
+          el.style.borderRadius = '12px';
+          el.style.boxShadow = '0 8px 24px rgba(15,23,42,.06)';
+          el.style.padding = '14px';
+          el.style.marginBottom = '12px';
+        });
+        var page = clone.querySelector('.page');
+        if(page) {
+          page.style.background = '#f4f7fb';
+          page.style.maxWidth = '600px';
+          page.style.margin = '0 auto';
+          page.style.padding = '16px';
+        }
+        // gather styles and viewport meta
+        var styles = Array.from(document.querySelectorAll('style')).map(function(s){ return s.outerHTML; }).join('\n');
+        var html = '<html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">' + styles + '</head><body style="margin:0;padding:0;">' + container.outerHTML + '</body></html>';
+        return html;
+      }
+
+      function sendEmail(){
+        var dto=LAST_RENDERED_DATA||normalizeDto(FALLBACK_REPORT_DATA);
+        var body=buildEmailBody(dto);
+        var html = buildEmailHtml ? buildEmailHtml(dto) : '<pre>' + safeText(body) + '</pre>';
+        var subj = document.title || 'Credit Card Health Check Report';
+        setStatus('Sending email...');
+        setLoading('sendEmailBtn',true,'Sending...','Send Email');
+        google.script.run
+          .withSuccessHandler(function(res){ setLoading('sendEmailBtn',false,'Sending...','Send Email'); setStatus('Email sent'); })
+          .withFailureHandler(function(err){
+              setLoading('sendEmailBtn',false,'Sending...','Send Email');
+              var msg = (err && err.message) ? err.message : 'unknown';
+              setStatus('Email failed: ' + msg);
+              showDebug('sendEmail failed', err);
+          })
+          .sendReportEmail(body, html, subj);
+      }
       function renderDebug(dto){ if(!isDebug) return; var t=document.getElementById("debugText"); if(!t) return; t.textContent=["buildInfo: "+BUILD_INFO,"url: "+String(window.location.href),"CURRENT_REPORT_TYPE: "+String(CURRENT_REPORT_TYPE||""),"lastResponse: "+LAST_RESPONSE_META,"status: "+((document.getElementById("statusText")||{}).textContent||""),"actions: "+String(dto&&dto.actions?dto.actions.length:0)].join("\\n"); }
       function renderAll(data){
         var dto=normalizeDto(data||FALLBACK_REPORT_DATA);
@@ -241,7 +356,10 @@
       function todayStamp(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
       function reportTypeShort(t){ return String(t||"FIRST").toUpperCase()==="MONTHLY"?"Monthly":"First"; }
       function downloadPdf(){ setStatus("Building PDF..."); setLoading("downloadBtn",true,"Building...","Download PDF"); var n=document.querySelector("#reportRoot"), c=(LAST_RENDERED_DATA&&LAST_RENDERED_DATA.client_name)?LAST_RENDERED_DATA.client_name:"Lumina Logic LLC", f=reportTypeShort(CURRENT_REPORT_TYPE)+"_"+c+"_"+todayStamp()+".pdf"; if(!n||typeof html2pdf==="undefined"){ setLoading("downloadBtn",false,"Building...","Download PDF"); showDebug("downloadPdf unavailable"); return; } html2pdf().set({ margin:8, filename:f, image:{ type:"jpeg", quality:0.98 }, html2canvas:{ scale:2, useCORS:true, windowWidth:n.scrollWidth }, jsPDF:{ unit:"mm", format:"a4", orientation:"portrait" }, pagebreak:{ mode:["css","legacy"] } }).from(n).save().then(function(){ setLoading("downloadBtn",false,"Building...","Download PDF"); setStatus("PDF downloaded"); }).catch(function(err){ setLoading("downloadBtn",false,"Building...","Download PDF"); setStatus("PDF failed"); showDebug("downloadPdf failed",err); }); }
-      function initPage(){ try{ applyToolbarMode(); document.getElementById("downloadBtn").addEventListener("click",downloadPdf); CURRENT_REPORT_TYPE=reportTypeLabel(CURRENT_REPORT_TYPE); renderLoadingState(CURRENT_REPORT_TYPE); loadData(); }catch(e){ showDebug("init failed",e); } }
+      function initPage(){ try{ applyToolbarMode(); document.getElementById("downloadBtn").addEventListener("click",downloadPdf);
+          var sendBtn = document.getElementById("sendEmailBtn");
+          if(sendBtn){ sendBtn.addEventListener("click", sendEmail); }
+          CURRENT_REPORT_TYPE=reportTypeLabel(CURRENT_REPORT_TYPE); renderLoadingState(CURRENT_REPORT_TYPE); loadData(); }catch(e){ showDebug("init failed",e); } }
       window.addEventListener("error",function(evt){ showDebug("window.onerror", evt&&(evt.error||evt.message||evt)); }); window.onunhandledrejection=function(evt){ showDebug("unhandledrejection", evt&&evt.reason?evt.reason:evt); };
       if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",initPage); else initPage();
     </script>
