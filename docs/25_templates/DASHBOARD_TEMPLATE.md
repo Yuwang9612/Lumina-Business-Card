@@ -4,276 +4,96 @@ Lumina Credit Reward — Unified System View
 
 Aligned with SSoT v1.1
 
-Purpose (Psychology)
+Primary Contract
 
-Stability: Same structure every time.
+This template is the single output structure contract for customer-facing DASHBOARD rendering.
+There is only one user-facing mode: Dashboard.
 
-Clarity: Know in 2 seconds if action is needed.
+Fixed Section Order (MUST)
 
-Guardian effect: “Your system is being monitored.”
+1) Your Current Credit Card Setup (Next 12 Months)
+2) Do Nothing vs Act (Scenario Comparison Table)
+3) Cards Requiring Attention (PER-CARD ONLY)
+4) Opportunity Windows
+5) Strategy Snapshot
+6) Next Steps
 
-Time awareness: No repeated static advice.
+Remove everything else.
+No Footer section.
 
-Integrity: No silent inaccurate projection.
+1) Your Current Credit Card Setup (Next 12 Months)
 
-This template replaces separate FIRST and MONTHLY reports.
-
-Data Contract (ReportDTO v2)
-
-Required:
-
-client_name
-
-report_type = "DASHBOARD"
-
-generated_at
-
-dashboard.system_status
-
-dashboard.strategy_snapshot
-
-dashboard.card_actions[]
-
-dashboard.opportunity_windows[]
-
-dashboard.data_health
-
-Tracking fields (System_Tracking, internal):
-
-first_seen_ym
-
-active_streak_months
-
-recommended_action_title
-
-recommended_action_opened_ym
-
-action_completed_at
-
-last_status_change_at
-
-Fixed Section Order (MUST NOT CHANGE)
-
-System Status
-
-Strategy Snapshot
-
-Cards Requiring Attention
-
-Opportunity Windows
-
-Data Health
-
-No extra sections.
-
-1) System Status
 Goal
 
-One-glance clarity.
+Establish credibility with current recurring economics.
 
-Headline options:
+Rules
 
-“System Stable”
+- Do not render separate totals lines above the table.
+- If active cards count == 1:
+  columns: Card | Annual Fee | Est. Value | Net | Status | Lifecycle
+- If active cards count > 1:
+  columns: Annual Fee | Est. Value | Net | Status
+  (aggregated totals view; no Card and no Lifecycle columns)
+- Status source:
+  - prefer portfolio.cards[].status if available
+  - fallback display only: net < 0 => Bleeding, else OK
+- Fixed copy under table:
+  "This section reflects your current setup. One-time welcome bonuses are shown separately below."
+- Empty state:
+  "No active cards found. Please check Card_Assets."
 
-“Action Needed”
+2) Do Nothing vs Act (Scenario Comparison Table)
 
-“Portfolio Losing Money”
+Rules
 
-“Data Update Required”
+- Table header must be exactly:
+  Scenario | Annual Fee (Recurring) | Spend Rewards (Recurring) | Unlock Bonus (One-Time) | 12-month Net (Total)
+- Row A: Do nothing (keep current)
+- Row B: If you act (after fixes)
+- Values must come from DTO only: scenario_comparison.*
+- UI must not derive scenario math.
+- Null values render as "—".
+- Keep existing "How this table is calculated" bullets if already present.
+- Do not add Footer explanation lines.
 
-Sub-line:
+3) Cards Requiring Attention (PER-CARD ONLY)
 
-12-month projected recurring net: $X
+Hard Rule
 
-If DataStale is active:
+Only per-card items are allowed.
 
-Append:
+Must omit any item where:
 
-“Estimates based on last confirmed data.”
+- issue_type == PortfolioLoss OR event_type == PortfolioLoss
+- OR card_name is empty/null
+- OR scope == portfolio
 
-No table here.
+Additional rules
 
-2) Strategy Snapshot
-
-Preserve FIRST math integrity.
-
-Render scenario_comparison table exactly per SSoT.
-
-Do not derive values.
-
-Under table:
-
-If unchanged:
-“Strategy remains valid under current structure.”
-
-If recalculated:
-“Strategy updated based on revised inputs.”
-
-No extra explanation.
-
-3) Cards Requiring Attention
-CRITICAL RULE: Time Semantics Required (MUST)
-
-Any card appearing in this section MUST include time-based context.
-
-The system must NEVER repeat identical static recommendations month-to-month.
-
-Every persistent issue must include at least one of:
-
-“Underperforming for X months”
-
-“Open for X months”
-
-“Fee posts in X days”
-
-“Bonus window closes in X days”
-
-“Pending for X months”
-
-Time values must derive from System_Tracking or lifecycle computation.
-
-If tracking unavailable → do not fabricate.
-
-Display Conditions
-
-Render only cards where:
-
-health = Bleeding
-
-lifecycle = PreBonus
-
-FeeDue active
-
-recommended_action exists
-
-If none:
-
-“All cards are performing as expected.”
-
-Card Block Structure
-
-Card Name
-Annual Fee: $X
-Estimated Recurring Net: $X
-
-Status label:
-
-Bleeding
-
-Pre-Bonus
-
-Fee Reminder
-
-Watch
-
-Time indicator (MANDATORY if issue persists):
-
-Underperforming for X months
-
-Recommended Action:
-
-From recommended_action_title.
-
-If absent, fallback per event type.
-
-Impact:
-
-If impact_usd > 0:
-“Saves about $X per year”
-
-Else:
-“Potential upside”
-
-Never show "$0".
-
-Completed Actions (MUST Preserve)
-
-If action_completed_at exists:
-
-Display:
-
-Completed on YYYY-MM-DD
-Impact reflected in current projection.
-
-Completed actions must remain visible for at least 1 cycle.
+- Keep time semantics for unexecuted recommendations (Pending for X months, etc.) when available.
+- Keep explanation text card-specific.
+- If no card-level items: "All cards are performing as expected."
 
 4) Opportunity Windows
 
-Only show active, fresh promotions.
+Keep as-is.
+Respect market freshness rules from SSoT.
 
-For each:
+5) Strategy Snapshot
 
-Issuer
-Headline
-Estimated bonus value: $X
-Expires in X days
+Keep as compact summary.
+Do not duplicate the scenario comparison table here.
 
-One-line rationale:
+6) Next Steps
 
-“High-value window under current structure.”
+Keep as compact actionable list.
+Must not reference First or Monthly.
 
-Do not stack multiple new cards in projection math.
+Removed Content (MUST NOT RENDER)
 
-If none:
-
-“No high-value windows at this time.”
-
-5) Data Health
-CRITICAL RULE: Health Semantics Required (MUST)
-
-The system must always display data freshness status.
-
-Render:
-
-Business profile last updated: X days ago
-Card list last updated: X days ago
-
-If STALE_DAYS exceeded:
-
-Status: Outdated
-
-And MUST include:
-
-“Decisions may be inaccurate until data is refreshed.”
-
-If stale, System Status must downgrade confidence tone.
-
-If current:
-
-Status: Up to date.
-
-Global Rendering Constraints
-
-Recurring and one-time must never mix.
-
-Monetary format: -$400 (no space).
-
-Never render:
-"$0"
-"-$0"
-"Check report details."
-
-Impact ≤ 0 → “Potential upside”.
-
-Time phrases must come from tracking fields.
-
-Dashboard must not reference “First Report” or “Monthly Report”.
-
-Behavioral Guarantees
-
-The Dashboard must:
-
-Show progression over time.
-
-Never repeat static advice without time context.
-
-Downgrade confidence when data stale.
-
-Preserve structural consistency across months.
-
-Avoid explanation redundancy.
+- Footer section
+- "12-month net = estimated value - annual fees (recurring only)."
+- "Optimized net and unlock are estimates based on suggested actions."
 
 End of Template
-
-Lumina Credit Reward — Dashboard Template v1.1
-Requires SSoT v1.1 State Tracking Extension

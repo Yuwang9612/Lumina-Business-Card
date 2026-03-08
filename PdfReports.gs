@@ -92,26 +92,106 @@ function generateDashboardPdf(ss, dashboardDto) {
   var doc = copyRes.doc;
   var body = initDoc_(doc);
   var d = dashboardDto.dashboard || {};
-  var ssLine = (d.system_status && d.system_status.headline) ? d.system_status.headline : 'Dashboard';
+  var sc = dashboardDto.scenario_comparison || {};
+  var cards = (dashboardDto.portfolio && dashboardDto.portfolio.cards) ? dashboardDto.portfolio.cards : [];
+  var activeCards = cards.filter(function(c) {
+    var s = String((c && c.status) || '').toLowerCase();
+    return !(s.indexOf('closed') >= 0 || s.indexOf('inactive') >= 0 || s.indexOf('cancel') >= 0);
+  });
+  function _statusForCard_(c) {
+    var s = String((c && c.status) || '').trim();
+    if (s) return s;
+    return Number(c && c.net) < 0 ? 'Bleeding' : 'OK';
+  }
+  function _isCardLevelAction_(a) {
+    var x = a || {};
+    var issue = String(x.issue_type || x.event_type || '').toLowerCase();
+    var scope = String(x.scope || '').toLowerCase();
+    var cardName = String(x.card_name || '').trim();
+    if (!cardName) return false;
+    if (issue === 'portfolioloss') return false;
+    if (scope === 'portfolio') return false;
+    return true;
+  }
+  function _fallbackBleedingCardActions_(cards) {
+    var list = Array.isArray(cards) ? cards : [];
+    var out = [];
+    for (var idx = 0; idx < list.length; idx++) {
+      var c = list[idx] || {};
+      var status = String(c.status || '').toLowerCase();
+      var isActive = !(status.indexOf('closed') >= 0 || status.indexOf('inactive') >= 0 || status.indexOf('cancel') >= 0);
+      var isBleeding = status.indexOf('bleeding') >= 0 || Number(c.net) < 0;
+      if (!isActive || !isBleeding) continue;
+      var months = Number(
+        c.active_streak_months != null ? c.active_streak_months :
+        (c.pending_months != null ? c.pending_months :
+        (c.underperform_months != null ? c.underperform_months :
+        (c.months_pending != null ? c.months_pending : NaN)))
+      );
+      var timeContext = '';
+      if (!isNaN(months) && months > 0) {
+        timeContext = months > 1 ? ('Underperforming for ' + months + ' months') : 'Underperforming for 1 month';
+      } else if (c.time_context) {
+        timeContext = String(c.time_context);
+      }
+      out.push({
+        fallback: true,
+        card_name: c.card_name || 'Card',
+        net: Number(c.net) || 0,
+        time_context: timeContext
+      });
+    }
+    return out;
+  }
   appendHeader_(body, 'Dashboard Report', dashboardDto.client_name || getClientName_(ss), formatDate_(new Date(), 'yyyy-MM-dd'), 'DASHBOARD');
   body.appendParagraph('Template: ' + DASHBOARD_TEMPLATE_PATH);
   body.appendParagraph('Cycle: ' + ym);
-  body.appendParagraph('System Status: ' + ssLine);
-  body.appendParagraph((d.system_status && d.system_status.subline) ? d.system_status.subline : '');
   body.appendParagraph('');
-  body.appendParagraph('Strategy Snapshot');
-  var sc = dashboardDto.scenario_comparison || {};
-  body.appendParagraph('Do nothing 12-month net: ' + formatUsd_(sc.do_nothing && sc.do_nothing.net_12m));
-  body.appendParagraph('Act 12-month net: ' + formatUsd_(sc.act && sc.act.net_12m));
+
+  body.appendParagraph('Your Current Credit Card Setup (Next 12 Months)');
+  if (!activeCards.length) {
+    body.appendParagraph('No active cards found. Please check Card_Assets.');
+  } else if (activeCards.length === 1) {
+    var c = activeCards[0] || {};
+    body.appendParagraph('Card: ' + (c.card_name || 'Card'));
+    body.appendParagraph('Annual Fee: ' + formatUsd_(c.annual_fee));
+    body.appendParagraph('Est. Value: ' + formatUsd_(c.est_value));
+    body.appendParagraph('Net: ' + formatUsd_(c.net));
+    body.appendParagraph('Status: ' + _statusForCard_(c));
+    body.appendParagraph('Lifecycle: ' + (c.lifecycle_stage || '—'));
+  } else {
+    var t = (dashboardDto.portfolio && dashboardDto.portfolio.totals) || {};
+    body.appendParagraph('Annual Fee: ' + formatUsd_(t.annual_fees));
+    body.appendParagraph('Est. Value: ' + formatUsd_(t.value));
+    body.appendParagraph('Net: ' + formatUsd_(t.net));
+    body.appendParagraph('Status: ' + (Number(t.net) < 0 ? 'Bleeding' : 'OK'));
+  }
+  body.appendParagraph('This section reflects your current setup. One-time welcome bonuses are shown separately below.');
   body.appendParagraph('');
+
+  body.appendParagraph('Do Nothing vs Act (Scenario Comparison Table)');
+  body.appendParagraph('Scenario | Annual Fee (Recurring) | Spend Rewards (Recurring) | Unlock Bonus (One-Time) | 12-month Net (Total)');
+  body.appendParagraph('Do nothing (keep current) | ' + formatUsdOrDash_(sc.do_nothing && sc.do_nothing.annual_fee) + ' | ' + formatUsdOrDash_(sc.do_nothing && sc.do_nothing.spend_rewards) + ' | ' + formatUsdOrDash_(sc.do_nothing && sc.do_nothing.unlock_bonus) + ' | ' + formatUsdOrDash_(sc.do_nothing && sc.do_nothing.net_12m));
+  body.appendParagraph('If you act (after fixes) | ' + formatUsdOrDash_(sc.act && sc.act.annual_fee) + ' | ' + formatUsdOrDash_(sc.act && sc.act.spend_rewards) + ' | ' + formatUsdOrDash_(sc.act && sc.act.unlock_bonus) + ' | ' + formatUsdOrDash_(sc.act && sc.act.net_12m));
+  body.appendParagraph('');
+
   body.appendParagraph('Cards Requiring Attention');
-  var actions = d.card_actions || dashboardDto.actions || [];
+  var actions = (d.card_actions || dashboardDto.actions || []).filter(_isCardLevelAction_);
+  if (!actions.length) actions = _fallbackBleedingCardActions_(activeCards);
   if (!actions.length) body.appendParagraph('All cards are performing as expected.');
   for (var i = 0; i < actions.length; i++) {
     var a = actions[i] || {};
-    body.appendParagraph((i + 1) + '. ' + (a.card_name || 'Card') + ' - ' + (a.title || 'Action'));
-    body.appendParagraph('Action: ' + (a.action || 'Review this item and take the best next step.'));
-    body.appendParagraph('Impact: ' + (a.impact_usd && Number(a.impact_usd) > 0 ? ('Saves about ' + formatUsd_(a.impact_usd) + ' per year') : 'Potential upside'));
+    if (a.fallback) {
+      body.appendParagraph((i + 1) + '. ' + (a.card_name || 'Card') + ' - Recurring net is negative');
+      body.appendParagraph('Estimated recurring net: ' + formatUsd_(a.net) + '/year');
+      body.appendParagraph('Status: Bleeding');
+      if (a.time_context) body.appendParagraph(a.time_context);
+      body.appendParagraph('Recommended action: Review this card\'s annual fee vs rewards; consider cancel/downgrade/replace if no offsetting value.');
+    } else {
+      body.appendParagraph((i + 1) + '. ' + (a.card_name || 'Card') + ' - ' + (a.title || 'Action'));
+      body.appendParagraph('Action: ' + (a.action || 'Review this item and take the best next step.'));
+      body.appendParagraph('Impact: ' + (a.impact_usd && Number(a.impact_usd) > 0 ? ('Saves about ' + formatUsd_(a.impact_usd) + ' per year') : 'Potential upside'));
+    }
   }
   body.appendParagraph('');
   body.appendParagraph('Opportunity Windows');
@@ -122,10 +202,22 @@ function generateDashboardPdf(ss, dashboardDto) {
     body.appendParagraph((j + 1) + '. ' + (p.promo_headline || p.card_name || 'Promotion'));
   }
   body.appendParagraph('');
-  body.appendParagraph('Data Health');
-  var dh = d.data_health || {};
-  body.appendParagraph('Status: ' + (dh.customer_data_status || 'Up to date'));
-  if (dh.caution) body.appendParagraph(dh.caution);
+
+  body.appendParagraph('Strategy Snapshot');
+  body.appendParagraph('Current recurring net (12 months): ' + formatUsd_(dashboardDto.kpis && dashboardDto.kpis.recurring_net));
+  body.appendParagraph('Projected recurring net after actions: ' + formatUsd_(dashboardDto.kpis && dashboardDto.kpis.optimized_net));
+  body.appendParagraph('Projected unlock: ' + formatUsd_(dashboardDto.kpis && dashboardDto.kpis.unlock));
+  body.appendParagraph('');
+
+  body.appendParagraph('Next Steps');
+  var nextSteps = actions.slice(0, 2);
+  if (!nextSteps.length) {
+    body.appendParagraph('No action needed right now. Recheck in next cycle.');
+  } else {
+    for (var k = 0; k < nextSteps.length; k++) {
+      body.appendParagraph((k + 1) + '. ' + (nextSteps[k].action || 'Review this item and take the best next step.') + ' (' + (nextSteps[k].card_name || 'Card') + ')');
+    }
+  }
   doc.saveAndClose();
   var pdfFile = exportPdfFromCopy_(ss, docCopy, 'Dashboard_' + clientKey + '_' + ym + '.pdf');
   return { fileId: pdfFile.getId(), fileUrl: buildDriveFileViewUrl_(pdfFile) };
@@ -276,6 +368,13 @@ function formatUsd_(num) {
   if (isNaN(n)) n = 0;
   var abs = Math.round(Math.abs(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return n < 0 ? '-$' + abs : '$' + abs;
+}
+
+function formatUsdOrDash_(num) {
+  if (num == null || num === '') return '—';
+  var n = Number(num);
+  if (isNaN(n)) return '—';
+  return formatUsd_(n);
 }
 
 function formatUsdSigned_(num) {

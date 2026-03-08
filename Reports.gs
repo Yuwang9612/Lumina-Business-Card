@@ -777,17 +777,6 @@ function runMonthlyReport(ss) {
   var topPromos = selectTopPromos_(activePromos, DECISION_CONFIG.PROMO_CAP || 3);
   var monthlyItems = _buildMonthlyModelItems_(events, catalogMap);
   monthlyItems = _dedupeMonthlyItems_(currentMonth, monthlyItems);
-  if ((!monthlyItems || monthlyItems.length === 0) && monthlyOutlook && typeof monthlyOutlook.net === 'number' && monthlyOutlook.net < 0) {
-    monthlyItems = monthlyItems || [];
-    monthlyItems.push({
-      type: 'PortfolioLoss',
-      severity: 'High',
-      title: 'Portfolio is losing money',
-      body: 'Your recurring annual net return is negative. Review fees vs. value and consider cancelling or replacing the loss-making card(s).',
-      impactUsd: Math.abs(monthlyOutlook.net),
-      meta: { net: monthlyOutlook.net, fees: monthlyOutlook.fees, value: monthlyOutlook.value }
-    });
-  }
   var stableNoIssues = monthlyItems.length === 0 && monthlyOutlook.net >= 0;
   var monthlyHeadline = stableNoIssues
     ? 'Everything looks stable this month.'
