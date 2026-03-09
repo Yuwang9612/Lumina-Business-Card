@@ -72,6 +72,18 @@ This section provides a rapid understanding of system flow.
 -> `generateDashboardReport()`
 -> `openBeautiful_("DASHBOARD")`
 
+Menu visibility rules:
+
+- `Customer Credit Card Dashboard` is visible to all workbook users who can run container-bound menu actions.
+- `Set Customer View` is visible to all workbook users who can run container-bound menu actions.
+- `Set Admin View` is visible only to admin-authorized users.
+- `Admin: Migrate Core Sheets To Production` is visible only to admin-authorized users.
+
+Admin authorization sources:
+
+- `ADMIN_EMAILS` script property whitelist
+- `ADMIN_MENU_OVERRIDE` user property fallback for environments where Session email is unavailable
+
 ### Web Rendering Path
 `WebApp.gs`
 `doGet()`
@@ -161,6 +173,13 @@ These sheets describe card metadata and promotion metadata.
 
 These are normally created by the developer or system administrator.
 
+Workbook homepage tab:
+
+- `Start_Here`
+
+This sheet is customer-visible workbook documentation only.
+It is not part of the Dashboard DTO, rendering contract, or PDF section structure.
+
 ## 5. Sheet Initialization Policy
 
 The system must safely handle missing sheets without destroying user data.
@@ -173,16 +192,38 @@ Company_Profile
 Card_Assets
 Card_Catalog
 Promo_Catalog
+Start_Here
 
 Behavior rules:
 
 If Card_Catalog or Promo_Catalog exists
 -> system must NOT recreate or overwrite it.
 
+If Start_Here exists
+-> system should keep it as the first tab when possible
+-> system must not treat it as part of Dashboard output state
+
+If Start_Here is missing
+-> system may automatically create it as workbook documentation
+
 If either sheet is missing
 -> system may automatically create it with required headers.
 
 Existing user data must never be deleted.
+
+Customer View visibility policy
+
+When Customer View is applied, the workbook should keep these sheets visible when present:
+
+- Start_Here
+- Company_Profile
+- Card_Assets
+
+Admin View / migration guardrails
+
+- `setupCustomerView()` is treated as customer-safe presentation control.
+- `setupAdminView()` is admin-only.
+- `migrateCoreSheetsToProduction()` is admin-only.
 
 System-managed sheets
 

@@ -3,7 +3,7 @@
  * One-click customer view setup: hide internal tabs and protect key tabs.
  */
 
-var CUSTOMER_VISIBLE_TABS = ['Company_Profile', 'Card_Assets'];
+var CUSTOMER_VISIBLE_TABS = ['Start_Here', 'Company_Profile', 'Card_Assets'];
 
 function _allSheetNames_(ss) {
   var sheets = ss.getSheets();
@@ -55,15 +55,16 @@ function _tryProtectSheet_(ss, sheetName) {
 }
 
 function _assertAdminOnly_() {
+  if (typeof hasAdminMenuOverride_ === 'function' && hasAdminMenuOverride_()) return true;
   var me = '';
   try { me = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase(); } catch (e) {}
   if (!me) {
     try { me = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase(); } catch (e3) {}
   }
-  if (!me) throw new Error('Admin check failed: active user email unavailable.');
   var props = PropertiesService.getScriptProperties();
   var raw = String(props.getProperty('ADMIN_EMAILS') || '').trim();
-  if (!raw) return true; // If not configured, keep current behavior.
+  if (!raw) return true; // If not configured, keep current behavior aligned with main.gs.
+  if (!me) throw new Error('Admin check failed: active user email unavailable and no admin override is enabled.');
   var allowed = raw
     .split(/[,\n;，；]/)
     .map(function(x){ return String(x || '').trim().toLowerCase().replace(/^["']|["']$/g, ''); })
@@ -96,7 +97,6 @@ function migrateCoreSheetsToProduction() {
 }
 
 function setupCustomerView() {
-  _assertAdminOnly_();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var allTabs = _allSheetNames_(ss);
   var visible = {};

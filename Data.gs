@@ -125,6 +125,8 @@ function getActiveCards(ss) {
  * @return {Object} map: key = Card Name, value = { Issuer, Annual Fee (USD), Base Return (Conservative), Typical Bonus Value (USD), Bonus Level, Downgrade Option, Notes, catalog_updated_at, data_confidence, bonus_last_updated, bonus_valid_until, best_for_categories, annual_fee_current, product_type }
  */
 function getCatalogMap(ss) {
+  // Card_Catalog is admin-maintained reference data and should be manually curated/refreshed.
+  // Keep the tested Card_Catalog header contract exactly as-is; do not change schema or field mapping here.
   var sheet = _getSheetByName(ss, getSheetName_(SHEET_CATALOG));
   var data = _getSheetData(sheet);
   if (data.length < 2) return {};
@@ -197,6 +199,7 @@ function findCatalogRecord(catalogMap, cardName) {
  * @return {Array.<Array>} Raw catalog data (including header row) for market engine.
  */
 function getCatalogAll(ss) {
+  // Card_Catalog is admin-maintained reference data; preserve the current tested header contract exactly.
   var sheet = _getSheetByName(ss, getSheetName_(SHEET_CATALOG));
   return _getSheetData(sheet);
 }
@@ -205,6 +208,8 @@ function getCatalogAll(ss) {
  * @return {Array.<Object>} rows from Promo_Catalog mapped by header.
  */
 function getPromoCatalog(ss) {
+  // Promo_Catalog is admin-maintained promo data; seed from public/official offers first where possible.
+  // Some issuers may present targeted or varying welcome offers. Preserve current freshness semantics and tested headers.
   var sheet = _getSheetByName(ss, getSheetName_(SHEET_PROMO_CATALOG));
   if (!sheet) return [];
   var lastRow = sheet.getLastRow();
@@ -273,6 +278,7 @@ function getPromoCatalog(ss) {
 }
 
 function normalizePromos_(rows) {
+  // Dashboard accuracy depends on refreshed Card_Assets inputs; Promo_Catalog supports the unified Dashboard only.
   if (!rows || rows.length === 0) return [];
   var out = rows.map(function(r) {
     var rec = {};

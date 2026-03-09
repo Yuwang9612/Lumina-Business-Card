@@ -95,6 +95,25 @@ repeated recommendations (anti-fatigue via time semantics)
 
 stale customer data gating (DataStale suppresses precision claims and may downgrade confidence of actions)
 
+### v1.1.1 — 2026-03-08 (Workbook Access and Menu Governance)
+
+Clarified workbook homepage and menu visibility behavior for the Google Sheets container.
+
+Defined `Start_Here` as the workbook homepage tab and customer-visible documentation sheet.
+
+Defined menu visibility rules for:
+
+- `Set Customer View`
+- `Set Admin View`
+- `Admin: Migrate Core Sheets To Production`
+
+Clarified that admin menu visibility may use either:
+
+- `ADMIN_EMAILS` script property whitelist, or
+- `ADMIN_MENU_OVERRIDE` user property fallback
+
+when Session email is unavailable in the Apps Script runtime.
+
 ---
 
 ## Scope Boundary
@@ -703,6 +722,84 @@ no placeholders
 no “$0 impact”
 
 correct monetary formatting
+
+---
+
+## 20. Workbook Access and Menu Governance (v1.1.1)
+20.1 Workbook Homepage
+
+The workbook must provide a `Start_Here` sheet as the front-page documentation tab.
+
+Rules:
+
+- `Start_Here` is workbook documentation only and is outside the Dashboard DTO/render/PDF contract.
+- `Start_Here` should be placed as the first tab when present.
+- `Start_Here` must remain visible in Customer View.
+- `Start_Here` copy must describe the product as a unified Dashboard system only.
+
+20.2 Menu Visibility Rules
+
+The Google Sheets container menu must follow this visibility policy:
+
+- `Customer Credit Card Dashboard`: visible to all workbook users who can run container-bound menu actions.
+- `Set Customer View`: visible to all workbook users who can run container-bound menu actions.
+- `Set Admin View`: visible only to admin-authorized users.
+- `Admin: Migrate Core Sheets To Production`: visible only to admin-authorized users.
+
+20.3 Admin Authorization Sources
+
+Admin authorization may be satisfied by either of the following:
+
+- script property `ADMIN_EMAILS`
+- user property `ADMIN_MENU_OVERRIDE = 1`
+
+`ADMIN_EMAILS` is the primary policy control.
+
+`ADMIN_MENU_OVERRIDE` is an allowed fallback for environments where Apps Script Session APIs do not expose the active user email reliably.
+
+20.4 `ADMIN_EMAILS` Semantics
+
+`ADMIN_EMAILS` is a script property containing one or more administrator email addresses.
+
+Allowed separators include:
+
+- comma
+- semicolon
+- newline
+
+If the active/effective user email is available and matches `ADMIN_EMAILS`, that user is admin-authorized for menu visibility and guarded admin actions.
+
+20.5 Session Email Unavailable Rule
+
+In some Apps Script container contexts, `Session.getActiveUser().getEmail()` and/or `Session.getEffectiveUser().getEmail()` may be unavailable.
+
+When Session email is unavailable:
+
+- admin menu visibility must not be inferred from email
+- `ADMIN_MENU_OVERRIDE` may be used to authorize the current user for admin menu visibility
+- non-admin users must continue to see `Set Customer View`
+
+20.6 Action-Level Guardrails
+
+Menu visibility and function execution guardrails must remain aligned.
+
+Required behavior:
+
+- `setupCustomerView()` is customer-safe and does not require admin authorization.
+- `setupAdminView()` requires admin authorization.
+- `migrateCoreSheetsToProduction()` requires admin authorization.
+
+20.7 Customer View Behavior
+
+Customer View is authorized to simplify workbook presentation by showing customer-facing tabs and hiding internal/admin tabs.
+
+At minimum, Customer View must keep these sheets visible when present:
+
+- `Start_Here`
+- `Company_Profile`
+- `Card_Assets`
+
+This rule is presentation-only and must not alter Dashboard logic, DTO behavior, scenario math, or catalog schemas.
 
 ---
 
