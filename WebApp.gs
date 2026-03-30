@@ -537,6 +537,82 @@ function buildDataHealth_(ss, model, cycleYm) {
   };
 }
 
+function _dashboardActionFallbackByIssueType_(issueType) {
+  var t = String((typeof normalizeEventType_ === 'function' ? normalizeEventType_(issueType) : issueType) || '');
+  if (t === 'Bleeding') return 'Cancel or replace before the annual fee posts.';
+  if (t === 'PreBonus') return 'Complete required spend and confirm bonus status.';
+  if (t === 'FeeDue') return 'Review before renewal: cancel/downgrade only if benefits do not justify the fee.';
+  if (t === 'DataStale') return 'Confirm current inputs to keep recommendations accurate.';
+  return 'Review this item and take the best next step.';
+}
+
+function _synthesizeDashboardCardActions_(dto) {
+  var d = dto || {};
+  var existing = Array.isArray(d.actions) ? d.actions.slice() : [];
+  if (existing.length) return existing;
+
+  var cards = (d.portfolio && Array.isArray(d.portfolio.cards)) ? d.portfolio.cards : [];
+  var actions = [];
+  for (var i = 0; i < cards.length; i++) {
+    var card = cards[i] || {};
+    var cardName = String(card.card_name || '').trim();
+    if (!cardName) continue;
+
+    var status = String(card.status || '').toLowerCase();
+    var lifecycle = String(card.lifecycle_stage || '').toLowerCase();
+    if (/closed|cancel|inactive/.test(status) || /closed|cancel|inactive/.test(lifecycle)) continue;
+
+    var net = Number(card.net);
+    var annualFee = Number(card.annual_fee);
+    var isBleeding = !!card.is_bleeding || (!isNaN(net) && net < 0);
+    if (isBleeding) {
+      var loss = !isNaN(net) && net < 0 ? Math.abs(Math.round(net)) : null;
+      actions.push({
+        card_name: cardName,
+        issue_type: 'Bleeding',
+        title: 'This card is losing money',
+        status: loss != null ? ('Estimated annual loss is about $' + _fmtNum(loss) + ' based on current inputs.') : 'Review needed.',
+        action: _dashboardActionFallbackByIssueType_('Bleeding'),
+        impact_usd: loss != null && loss > 0 ? loss : null,
+        priority: 1
+      });
+      continue;
+    }
+
+    var isPreBonus = !!card.is_prebonus || lifecycle === 'prebonus';
+    if (isPreBonus) {
+      actions.push({
+        card_name: cardName,
+        issue_type: 'PreBonus',
+        title: 'Bonus not yet confirmed',
+        status: 'Bonus completion is not confirmed.',
+        action: _dashboardActionFallbackByIssueType_('PreBonus'),
+        impact_usd: null,
+        priority: 2
+      });
+      continue;
+    }
+
+    var feeDueMonth = String(card.fee_due_month || '').trim();
+    if (feeDueMonth && !isNaN(annualFee) && annualFee > 0) {
+      actions.push({
+        card_name: cardName,
+        issue_type: 'FeeDue',
+        title: 'Annual renewal approaching',
+        status: 'Annual renewal approaching (' + '$' + _fmtNum(Math.round(annualFee)) + ' due in ' + feeDueMonth + ').',
+        action: _dashboardActionFallbackByIssueType_('FeeDue'),
+        impact_usd: null,
+        priority: 3
+      });
+    }
+  }
+
+  actions.sort(function(a, b) {
+    return Number(a.priority || 999) - Number(b.priority || 999);
+  });
+  return actions;
+}
+
 function buildDashboardDto_(ss, monthlyModel, clientName, cycleYm) {
   var clientKey = normalizeClientKey_(clientName);
   var dto = (typeof buildReportDTOFromDashboardModel_ === 'function')
@@ -546,7 +622,8 @@ function buildDashboardDto_(ss, monthlyModel, clientName, cycleYm) {
   dto.report_cycle_ym = cycleYm;
 
   var dataHealth = buildDataHealth_(ss, monthlyModel, cycleYm);
-  var actions = updateSystemTracking_(ss, clientKey, cycleYm, dto.actions || []);
+  var baseActions = _synthesizeDashboardCardActions_(dto);
+  var actions = updateSystemTracking_(ss, clientKey, cycleYm, baseActions);
   dto.actions = actions;
   var strategySnapshot = {
     scenario_comparison: dto.scenario_comparison || { do_nothing: {}, act: {} },
@@ -808,7 +885,6 @@ function generateReportForWeb(mode) {
     var out = generatePdfForWeb_(t) || {};
     out.ok = true;
     out.type = t;
-    if (!out.mockData) out.mockData = getMockReportData_('Lumina Logic LLC', t);
     Logger.log('[WebApp][generateReportForWeb] done type=%s ok=%s hasFileUrl=%s forcePreviewDownload=%s fields=%s', t, out.ok, !!out.fileUrl, out.forcePreviewDownload, Object.keys(out).join(','));
     return out;
   }, function (e) {
@@ -818,6 +894,8 @@ function generateReportForWeb(mode) {
       type: t2,
       fileUrl: '',
       forcePreviewDownload: true,
+      usedFallbackModel: true,
+      usedFallbackPdf: true,
       message: t2 + ' fallback success: ' + (e && e.message ? String(e.message) : 'unknown'),
       mockData: getMockReportData_('Lumina Logic LLC', 'DASHBOARD')
     };
@@ -897,10 +975,14 @@ function generatePdfForWeb_(mode) {
       type: 'DASHBOARD',
       fileUrl: pdfRes.fileUrl ? String(pdfRes.fileUrl) : '',
       forcePreviewDownload: !(pdfRes && pdfRes.fileUrl),
+      usedFallbackModel: !!usedFallbackModel,
+      usedFallbackPdf: !!usedFallbackPdf,
       message: pdfRes.message ? String(pdfRes.message) : 'Report generated successfully.',
-      report_cycle_ym: cycleYm,
-      mockData: getMockReportData_('Lumina Logic LLC', 'DASHBOARD')
+      report_cycle_ym: cycleYm
     };
+    if (usedFallbackModel || usedFallbackPdf || !out.fileUrl) {
+      out.mockData = getMockReportData_('Lumina Logic LLC', 'DASHBOARD');
+    }
     Logger.log('[WebApp][generatePdfForWeb_] mode=%s modelPath=%s pdfPath=%s fileUrlEmpty=%s', 'DASHBOARD', usedFallbackModel ? 'fallback' : 'main', usedFallbackPdf ? 'fallback' : 'main', !out.fileUrl);
     return out;
   }, function (e) {
@@ -909,6 +991,8 @@ function generatePdfForWeb_(mode) {
       type: 'DASHBOARD',
       fileUrl: '',
       forcePreviewDownload: true,
+      usedFallbackModel: true,
+      usedFallbackPdf: true,
       message: 'Fallback completed: ' + (e && e.message ? String(e.message) : 'unknown'),
       mockData: getMockReportData_('Lumina Logic LLC', 'DASHBOARD')
     };
