@@ -56,11 +56,12 @@ Defines:
 
 The dashboard must always render these sections in this order:
 
-- System Status
-- Strategy Snapshot
+- Your Current Credit Card Setup (Next 12 Months)
+- Do Nothing vs Act (Scenario Comparison Table)
 - Cards Requiring Attention
 - Opportunity Windows
-- Data Health
+- Strategy Snapshot
+- Next Steps
 
 ## 3. Quick System Map
 
@@ -319,6 +320,10 @@ Key sections:
 - `promotions`
 - `scenario_comparison`
 - `dashboard.{system_status,strategy_snapshot,card_actions,opportunity_windows,data_health}`
+
+The render contract maps these backend blocks into the Dashboard template sections, with
+`portfolio` feeding the current setup table, `scenario_comparison` feeding the comparison table,
+`actions` feeding card attention/next steps, and `promotions` feeding opportunity windows.
 
 Field definitions are governed by SSOT + current DTO contract.
 
