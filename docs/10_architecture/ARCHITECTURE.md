@@ -322,7 +322,7 @@ Key sections:
 - `dashboard.{system_status,strategy_snapshot,card_actions,opportunity_windows,data_health}`
 
 The render contract maps these backend blocks into the Dashboard template sections, with
-`portfolio` feeding the current setup table, `scenario_comparison` feeding the comparison table,
+`portfolio` feeding the current setup paragraph copy, `scenario_comparison` feeding the comparison table,
 `actions` feeding card attention/next steps, and `promotions` feeding opportunity windows.
 
 Field definitions are governed by SSOT + current DTO contract.

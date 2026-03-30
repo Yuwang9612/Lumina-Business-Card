@@ -75,11 +75,12 @@ Standard run sequence:
 2. Open spreadsheet menu:
    - `Card Profit Watch -> Customer Credit Card Dashboard`
 3. Load Dashboard dialog.
-4. Run one baseline load (snapshot reuse path).
-5. Run `Regenerate Snapshot` (forced recompute path).
+4. Open Dashboard and confirm it loads the latest generated report by default.
+5. Run `Regenerate Snapshot` for an explicit forced recompute check.
+   - The dialog toolbar must expose `Regenerate Snapshot` when using the in-Sheets Dashboard dialog.
 6. Generate PDF:
-   - frontend `Download PDF`
-   - backend path `generatePdfForWeb_ -> generateDashboardPdf` (release check)
+   - in-Sheets `Download PDF` should preserve the Dashboard visual layout, including tables/cards/section structure
+   - backend path `generatePdfForWeb_ -> generateDashboardPdf` remains a fallback, not the primary release artifact
 
 Primary code path reference:
 

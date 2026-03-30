@@ -29,16 +29,16 @@ Establish credibility with current recurring economics.
 
 Rules
 
-- Do not render separate totals lines above the table.
+- Render this section as paragraph copy only; do not render a table.
 - If active cards count == 1:
-  columns: Card | Annual Fee | Est. Value | Net | Status | Lifecycle
+  write one paragraph describing that card's current state using its card name, annual fee, estimated value, net, status, and lifecycle when available.
 - If active cards count > 1:
-  columns: Annual Fee | Est. Value | Net | Status
-  (aggregated totals view; no Card and no Lifecycle columns)
+  write summary paragraph copy based on all active cards combined.
+  The paragraph must reflect aggregate annual fees, aggregate estimated value, aggregate net, and an overall status.
 - Status source:
   - prefer portfolio.cards[].status if available
   - fallback display only: net < 0 => Bleeding, else OK
-- Fixed copy under table:
+- Fixed copy under the Current Setup paragraph block:
   "This section reflects your current setup. One-time welcome bonuses are shown separately below."
 - Empty state:
   "No active cards found. Please check Card_Assets."

@@ -1,0 +1,251 @@
+{
+  "checked_at": "2026-03-12T00:12:15.780Z",
+  "url": "https://script.google.com/macros/s/AKfycbxjMHX29smtYR9SuWLQalvJ7X5ALXFng10IwCM9tKJULXEuFABaic0RZtGrPt3SWwZo/exec",
+  "before_generated": "2026-03-11 17:05",
+  "after_generated": "2026-03-11 17:11",
+  "regenerate_changed_timestamp": true,
+  "preview_contains_bleeding": true,
+  "preview_contains_download_pdf": true,
+  "preview_contains_strategy_table": true,
+  "dashboard_data": {
+    "ok": true,
+    "out": {
+      "scenario_comparison": {
+        "act": {
+          "spend_rewards": 100,
+          "annual_fee": 500,
+          "unlock_bonus": 2000,
+          "net_12m": 1600
+        },
+        "do_nothing": {
+          "spend_rewards": 100,
+          "annual_fee": 500,
+          "unlock_bonus": null,
+          "net_12m": -400
+        }
+      },
+      "report_type": "DASHBOARD",
+      "client_key": "lumina_logic_llc",
+      "promotions": [
+        {
+          "promo_end_date": "2026-06-30",
+          "recommendation_tier": "Now",
+          "card_name": "Capital One Spark Cash Plus",
+          "promo_headline": "$2,000 bonus after $50K spend",
+          "affiliate_url": "",
+          "promo_id": "",
+          "bonus_value_est_usd": 2000,
+          "issuer": ""
+        },
+        {
+          "promo_end_date": "2026-03-31",
+          "card_name": "Amex Business Platinum",
+          "recommendation_tier": "Watchlist",
+          "promo_headline": "150K MR after $15K spend",
+          "affiliate_url": "",
+          "bonus_value_est_usd": 1200,
+          "promo_id": "",
+          "issuer": ""
+        },
+        {
+          "promo_end_date": "2026-04-30",
+          "recommendation_tier": "Watchlist",
+          "card_name": "Capital One Venture X Business",
+          "promo_headline": "150K miles after $30K spend",
+          "promo_id": "",
+          "bonus_value_est_usd": 1000,
+          "affiliate_url": "",
+          "issuer": ""
+        }
+      ],
+      "report_cycle_ym": "2026-03",
+      "inputs_changed_since_snapshot": false,
+      "inputs_hash": "84afac22559a1263c11e62c989c13485fcae8d890ccc24b87f6736e5e9bd2e42",
+      "snapshot_row_id": "b9606506-eb3a-4cef-8cc7-4252c050c2d3",
+      "portfolio": {
+        "cards": [
+          {
+            "is_bleeding": true,
+            "lifecycle_stage": "LongTerm",
+            "card_name": "Capital One Spark Cash Plus",
+            "est_value": 100,
+            "annual_fee": 500,
+            "net": -400,
+            "fee_due_month": "",
+            "is_prebonus": false,
+            "card_id": "capital_one_spark_cash_plus",
+            "status": ""
+          }
+        ],
+        "totals": {
+          "net": -400,
+          "value": 100,
+          "annual_fees": 500
+        }
+      },
+      "generated_at": "2026-03-12T00:11:24.430Z",
+      "tagline": "Protecting your profits. Powering your business.",
+      "actions": [
+        {
+          "time_context": "",
+          "issue_type": "Bleeding",
+          "card_name": "Capital One Spark Cash Plus",
+          "action": "Cancel or replace before the annual fee posts.",
+          "title": "This card is losing money",
+          "priority": 1,
+          "status": "Estimated annual loss is about $400 based on current inputs.",
+          "impact_usd": 400
+        }
+      ],
+      "kpis": {
+        "optimized_net": 100,
+        "unlock": 500,
+        "recurring_value": 100,
+        "recurring_fees": 500,
+        "recurring_net": -400
+      },
+      "client_name": "Lumina Logic LLC",
+      "dashboard": {
+        "data_health": {
+          "market_fresh_days_threshold": 120,
+          "report_cycle_ym": "2026-03",
+          "customer_data_status": "Up to date",
+          "stale_days_threshold": 45,
+          "market_data_status": "Fresh",
+          "assets_days_since_confirmed": 23,
+          "business_profile_days_since_confirmed": null,
+          "caution": ""
+        },
+        "card_actions": [
+          {
+            "time_context": "",
+            "card_name": "Capital One Spark Cash Plus",
+            "issue_type": "Bleeding",
+            "action": "Cancel or replace before the annual fee posts.",
+            "title": "This card is losing money",
+            "priority": 1,
+            "status": "Estimated annual loss is about $400 based on current inputs.",
+            "impact_usd": 400
+          }
+        ],
+        "opportunity_windows": [
+          {
+            "promo_end_date": "2026-06-30",
+            "card_name": "Capital One Spark Cash Plus",
+            "recommendation_tier": "Now",
+            "promo_headline": "$2,000 bonus after $50K spend",
+            "affiliate_url": "",
+            "bonus_value_est_usd": 2000,
+            "promo_id": "",
+            "issuer": ""
+          },
+          {
+            "promo_end_date": "2026-03-31",
+            "recommendation_tier": "Watchlist",
+            "card_name": "Amex Business Platinum",
+            "promo_headline": "150K MR after $15K spend",
+            "affiliate_url": "",
+            "bonus_value_est_usd": 1200,
+            "promo_id": "",
+            "issuer": ""
+          },
+          {
+            "promo_end_date": "2026-04-30",
+            "card_name": "Capital One Venture X Business",
+            "recommendation_tier": "Watchlist",
+            "promo_headline": "150K miles after $30K spend",
+            "bonus_value_est_usd": 1000,
+            "promo_id": "",
+            "affiliate_url": "",
+            "issuer": ""
+          }
+        ],
+        "strategy_snapshot": {
+          "note": "Strategy remains valid under current structure.",
+          "scenario_comparison": {
+            "act": {
+              "spend_rewards": 100,
+              "annual_fee": 500,
+              "unlock_bonus": 2000,
+              "net_12m": 1600
+            },
+            "do_nothing": {
+              "spend_rewards": 100,
+              "annual_fee": 500,
+              "unlock_bonus": null,
+              "net_12m": -400
+            }
+          }
+        },
+        "system_status": {
+          "inputs_changed_banner": "",
+          "headline": "Portfolio Losing Money",
+          "subline": "12-month projected recurring net: -$400"
+        }
+      }
+    }
+  },
+  "pdf_result": {
+    "ok": true,
+    "out": {
+      "forcePreviewDownload": false,
+      "report_cycle_ym": "2026-03",
+      "mockData": {
+        "report_cycle_ym": "2026-03",
+        "promotions": [],
+        "portfolio": {
+          "cards": [],
+          "totals": {
+            "net": -9300,
+            "value": -6700,
+            "annual_fees": 2600
+          }
+        },
+        "generated_at": "2026-03-12T00:12:21.941Z",
+        "tagline": "Protecting your profits. Powering your business.",
+        "report_type": "DASHBOARD",
+        "client_name": "Lumina Logic LLC",
+        "kpis": {
+          "optimized_net": 5100,
+          "unlock": 14400,
+          "recurring_value": -6700,
+          "recurring_fees": 2600,
+          "recurring_net": -9300
+        },
+        "actions": [
+          {
+            "card_name": "Ink Cash",
+            "issue_type": "bleeding",
+            "action": "Cancel or replace before the annual fee posts.",
+            "title": "This card is losing money",
+            "priority": 1,
+            "status": "Review needed",
+            "impact_usd": 4300
+          },
+          {
+            "issue_type": "prebonus",
+            "card_name": "Amex Business Gold",
+            "action": "Complete required spend and confirm bonus status.",
+            "priority": 2,
+            "title": "Review needed",
+            "impact_usd": 3700,
+            "status": "Bonus completion is not confirmed."
+          },
+          {
+            "issue_type": "other",
+            "card_name": "Venture X Business",
+            "action": "Review this item and take the best next step.",
+            "priority": 3,
+            "title": "Review needed",
+            "impact_usd": 1350,
+            "status": "Review needed."
+          }
+        ]
+      },
+      "fileUrl": "https://drive.google.com/file/d/1zyTcg37VbzBXT8WrTfRN4h6RD6mefwAp/view?usp=sharing",
+      "ok": true,
+      "message": "Report generated successfully.",
+      "type": "DASHBOARD"
+    }
+  }
+}

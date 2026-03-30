@@ -103,6 +103,18 @@ function generateDashboardPdf(ss, dashboardDto) {
     if (s) return s;
     return Number(c && c.net) < 0 ? 'Bleeding' : 'OK';
   }
+  function _currentSetupParagraphs_(cards, dashboardDto) {
+    var currentSetup = dashboardDto && dashboardDto.dashboard && dashboardDto.dashboard.current_setup;
+    if (currentSetup && Array.isArray(currentSetup.paragraphs) && currentSetup.paragraphs.length) {
+      var lines = currentSetup.paragraphs.slice();
+      lines.push(String(currentSetup.fixed_copy || 'This section reflects your current setup. One-time welcome bonuses are shown separately below.'));
+      return lines;
+    }
+    return [
+      'No active cards found. Please check Card_Assets.',
+      'This section reflects your current setup. One-time welcome bonuses are shown separately below.'
+    ];
+  }
   function _isCardLevelAction_(a) {
     var x = a || {};
     var issue = String(x.issue_type || x.event_type || '').toLowerCase();
@@ -149,24 +161,10 @@ function generateDashboardPdf(ss, dashboardDto) {
   body.appendParagraph('');
 
   body.appendParagraph('Your Current Credit Card Setup (Next 12 Months)');
-  if (!activeCards.length) {
-    body.appendParagraph('No active cards found. Please check Card_Assets.');
-  } else if (activeCards.length === 1) {
-    var c = activeCards[0] || {};
-    body.appendParagraph('Card: ' + (c.card_name || 'Card'));
-    body.appendParagraph('Annual Fee: ' + formatUsd_(c.annual_fee));
-    body.appendParagraph('Est. Value: ' + formatUsd_(c.est_value));
-    body.appendParagraph('Net: ' + formatUsd_(c.net));
-    body.appendParagraph('Status: ' + _statusForCard_(c));
-    body.appendParagraph('Lifecycle: ' + (c.lifecycle_stage || '—'));
-  } else {
-    var t = (dashboardDto.portfolio && dashboardDto.portfolio.totals) || {};
-    body.appendParagraph('Annual Fee: ' + formatUsd_(t.annual_fees));
-    body.appendParagraph('Est. Value: ' + formatUsd_(t.value));
-    body.appendParagraph('Net: ' + formatUsd_(t.net));
-    body.appendParagraph('Status: ' + (Number(t.net) < 0 ? 'Bleeding' : 'OK'));
+  var currentSetupParagraphs = _currentSetupParagraphs_(cards, dashboardDto);
+  for (var pIdx = 0; pIdx < currentSetupParagraphs.length; pIdx++) {
+    body.appendParagraph(currentSetupParagraphs[pIdx]);
   }
-  body.appendParagraph('This section reflects your current setup. One-time welcome bonuses are shown separately below.');
   body.appendParagraph('');
 
   body.appendParagraph('Do Nothing vs Act (Scenario Comparison Table)');

@@ -224,7 +224,14 @@ function getPromoCatalog(ss) {
     headerWidth--;
   }
   if (headerWidth <= 0) return [];
-  var data = sheet.getRange(1, 1, lastRow, headerWidth).getValues();
+  var range = sheet.getRange(1, 1, lastRow, headerWidth);
+  var data = range.getValues();
+  var richData = null;
+  try {
+    richData = range.getRichTextValues();
+  } catch (e) {
+    richData = null;
+  }
   if (data.length < 2) return [];
   var headers = data[0];
   if (_isPromoDebugEnabled_()) {
@@ -255,6 +262,11 @@ function getPromoCatalog(ss) {
     for (var j = 0; j < headerWidth; j++) {
       var key = headers[j] != null && String(headers[j]).trim() !== '' ? String(headers[j]).trim() : ('Col' + j);
       var val = j < row.length ? row[j] : '';
+      var headerKey = headers[j] != null && String(headers[j]).trim() !== '' ? String(headers[j]).trim() : ('Col' + j);
+      if (_isPromoUrlHeader_(headerKey)) {
+        var richCell = (richData && richData[i] && j < richData[i].length) ? richData[i][j] : null;
+        val = _coercePromoUrlValue_(val, richCell);
+      }
       if (val != null && String(val).trim() !== '') isEmpty = false;
       obj[key] = val;
     }
@@ -293,7 +305,7 @@ function normalizePromos_(rows) {
     rec.card_name = _toStringOrEmpty_(_getPromoField_(r, ['card_name', 'card name', 'card']));
     rec.issuer = _toStringOrEmpty_(_getPromoField_(r, ['issuer']));
     rec.promo_headline = _toStringOrEmpty_(_getPromoField_(r, ['promo_headline', 'promo headline', 'headline']));
-    rec.affiliate_url = _toStringOrEmpty_(_getPromoField_(r, ['affiliate_url', 'affiliate url', 'apply_link', 'apply link', 'url']));
+    rec.affiliate_url = _toStringOrEmpty_(_getPromoField_(r, ['affiliate_url', 'affiliate url', 'affiliate_link', 'affiliate link', 'apply_link', 'apply link', 'apply_url', 'apply url', 'promo_url', 'promo url', 'promo_link', 'promo link', 'offer_url', 'offer url', 'offer_link', 'offer link', 'official_url', 'official url', 'link', 'url']));
     return rec;
   });
   if (_isPromoDebugEnabled_()) {
@@ -302,6 +314,50 @@ function normalizePromos_(rows) {
     Logger.log('[PromoCatalog] sample ids: ' + out.slice(0, 5).map(function(p) { return p.promo_id; }).join(', '));
   }
   return out;
+}
+
+function _isPromoUrlHeader_(header) {
+  var h = String(header || '').trim().toLowerCase();
+  return [
+    'affiliate_url', 'affiliate url',
+    'affiliate_link', 'affiliate link',
+    'apply_link', 'apply link',
+    'apply_url', 'apply url',
+    'promo_url', 'promo url',
+    'promo_link', 'promo link',
+    'offer_url', 'offer url',
+    'offer_link', 'offer link',
+    'official_url', 'official url',
+    'link', 'url'
+  ].indexOf(h) >= 0;
+}
+
+function _coercePromoUrlValue_(raw, richText) {
+  var text = raw == null ? '' : String(raw).trim();
+  if (/^https?:\/\//i.test(text)) return text;
+  var link = _extractRichTextUrl_(richText);
+  if (link) return link;
+  return text;
+}
+
+function _extractRichTextUrl_(richText) {
+  if (!richText) return '';
+  try {
+    if (typeof richText.getLinkUrl === 'function') {
+      var direct = String(richText.getLinkUrl() || '').trim();
+      if (direct) return direct;
+    }
+  } catch (e) {}
+  try {
+    if (typeof richText.getRuns === 'function') {
+      var runs = richText.getRuns() || [];
+      for (var i = 0; i < runs.length; i++) {
+        var url = String((runs[i] && runs[i].getLinkUrl && runs[i].getLinkUrl()) || '').trim();
+        if (url) return url;
+      }
+    }
+  } catch (e2) {}
+  return '';
 }
 
 function filterActivePromos_(promos, now) {

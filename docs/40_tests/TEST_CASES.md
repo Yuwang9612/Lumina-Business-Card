@@ -119,6 +119,8 @@ Assertions
 - `scenario_comparison.do_nothing` and `.act` both populated.
 - Strategy Snapshot table renders these DTO values.
 - UI does not rely on ad-hoc guessed numbers.
+- Current Setup renders as paragraph copy, not a table.
+- For multi-card portfolios, Current Setup paragraph reflects aggregated active-card totals rather than a single-card description.
 
 Artifacts
 - Strategy Snapshot screenshot.
@@ -141,6 +143,9 @@ Execution
 Assertions
 - UI text wraps; no overlap over KPIs/actions.
 - PDF remains readable; no clipped critical rows.
+- PDF should not introduce large blank gaps between `Cards Requiring Attention` and `Opportunity Windows`.
+- In the in-Sheets Dashboard dialog, `Download PDF` must preserve the visual Dashboard layout; do not regress to a plain-text fallback unless the visual export path fails.
+- Promotion entries should expose a real link when `Promo_Catalog` provides one; do not regress to `No link` for valid rows.
 
 Artifacts
 - UI screenshot (offers section).

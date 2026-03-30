@@ -613,6 +613,90 @@ function _synthesizeDashboardCardActions_(dto) {
   return actions;
 }
 
+function _activeDashboardCards_(dto) {
+  var cards = (dto && dto.portfolio && Array.isArray(dto.portfolio.cards)) ? dto.portfolio.cards : [];
+  return cards.filter(function(card) {
+    var c = card || {};
+    var status = String(c.status || '').toLowerCase();
+    var lifecycle = String(c.lifecycle_stage || '').toLowerCase();
+    if (/closed|cancel|inactive/.test(status) || /closed|cancel|inactive/.test(lifecycle)) return false;
+    return true;
+  });
+}
+
+function _dashboardStatusFromCard_(card) {
+  var c = card || {};
+  var status = String(c.status || '').trim();
+  if (status) return status;
+  return Number(c.net) < 0 ? 'Bleeding' : 'OK';
+}
+
+function _dashboardOverallStatus_(activeCards, recurringNet) {
+  var cards = Array.isArray(activeCards) ? activeCards : [];
+  for (var i = 0; i < cards.length; i++) {
+    var status = String((cards[i] && cards[i].status) || '').trim().toLowerCase();
+    if (status && (status.indexOf('bleeding') >= 0 || status.indexOf('loss') >= 0)) return 'Bleeding';
+  }
+  return Number(recurringNet) < 0 ? 'Bleeding' : 'OK';
+}
+
+function buildCurrentSetupCopy_(dto) {
+  var d = dto || {};
+  var activeCards = _activeDashboardCards_(d);
+  var totals = (d.portfolio && d.portfolio.totals) ? d.portfolio.totals : {};
+  var kpis = d.kpis || {};
+  var recurringFees = Number(kpis.recurring_fees != null ? kpis.recurring_fees : totals.annual_fees || 0);
+  var recurringValue = Number(kpis.recurring_value != null ? kpis.recurring_value : totals.value || 0);
+  var recurringNet = Number(kpis.recurring_net != null ? kpis.recurring_net : totals.net || 0);
+  var fixedCopy = 'This section reflects your current setup. One-time welcome bonuses are shown separately below.';
+
+  if (!activeCards.length) {
+    return {
+      mode: 'empty',
+      active_cards_count: 0,
+      overall_status: 'OK',
+      paragraphs: ['No active cards found. Please check Card_Assets.'],
+      fixed_copy: fixedCopy
+    };
+  }
+
+  if (activeCards.length === 1) {
+    var card = activeCards[0] || {};
+    var lifecycle = String(card.lifecycle_stage || '').trim();
+    var statusSingle = _dashboardStatusFromCard_(card);
+    var single = (card.card_name || 'This card') +
+      ' is currently ' + statusSingle +
+      ', with an estimated annual fee of ' + formatUsdForWeb_(Number(card.annual_fee || 0)) +
+      ', estimated value of ' + formatUsdForWeb_(Number(card.est_value || 0)) +
+      ', and net of ' + formatUsdForWeb_(Number(card.net || 0)) + '.';
+    if (lifecycle) single += ' Lifecycle: ' + lifecycle + '.';
+    return {
+      mode: 'single',
+      active_cards_count: 1,
+      overall_status: statusSingle,
+      paragraphs: [single],
+      fixed_copy: fixedCopy
+    };
+  }
+
+  var overallStatus = _dashboardOverallStatus_(activeCards, recurringNet);
+  var summary = 'You currently have ' + activeCards.length + ' active cards. Together they are projected to generate ' +
+    formatUsdForWeb_(recurringValue) + ' in estimated recurring value against ' +
+    formatUsdForWeb_(recurringFees) + ' in annual fees, for a combined recurring net of ' +
+    formatUsdForWeb_(recurringNet) + '. Overall status is ' + overallStatus + '.';
+
+  return {
+    mode: 'aggregate',
+    active_cards_count: activeCards.length,
+    overall_status: overallStatus,
+    aggregate_annual_fees: recurringFees,
+    aggregate_estimated_value: recurringValue,
+    aggregate_recurring_net: recurringNet,
+    paragraphs: [summary],
+    fixed_copy: fixedCopy
+  };
+}
+
 function buildDashboardDto_(ss, monthlyModel, clientName, cycleYm) {
   var clientKey = normalizeClientKey_(clientName);
   var dto = (typeof buildReportDTOFromDashboardModel_ === 'function')
@@ -641,7 +725,8 @@ function buildDashboardDto_(ss, monthlyModel, clientName, cycleYm) {
     strategy_snapshot: strategySnapshot,
     card_actions: actions,
     opportunity_windows: dto.promotions || [],
-    data_health: dataHealth
+    data_health: dataHealth,
+    current_setup: buildCurrentSetupCopy_(dto)
   };
   dto.dashboard = dashboard;
   dto.client_key = clientKey;
@@ -847,6 +932,18 @@ function getBeautifulReportData(clientName, type) {
     return data;
   }, function () {
     Logger.log('[WebApp][getBeautifulReportData] source=fallback type=%s', 'DASHBOARD');
+    return getMockReportData_(clientName, 'DASHBOARD');
+  });
+}
+
+function regenerateBeautifulReportData(clientName, type) {
+  return safeRun_(function () {
+    var cname = String(clientName || 'Lumina Logic LLC');
+    var data = generateReportDataForWeb(cname, 'DASHBOARD', true);
+    Logger.log('[WebApp][regenerateBeautifulReportData] type=%s generated_at=%s snapshot_row_id=%s', 'DASHBOARD', data && data.generated_at, data && data.snapshot_row_id);
+    return data;
+  }, function () {
+    Logger.log('[WebApp][regenerateBeautifulReportData] fallback type=%s', 'DASHBOARD');
     return getMockReportData_(clientName, 'DASHBOARD');
   });
 }

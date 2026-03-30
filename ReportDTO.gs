@@ -47,7 +47,7 @@ function _dtoPromo_(p) {
     promo_headline: x.promo_headline != null ? String(x.promo_headline) : (x.title != null ? String(x.title) : ''),
     bonus_value_est_usd: _dtoToNum_(x.bonus_value_est_usd, 0),
     promo_end_date: x.promo_end_date ? _dtoIso_(x.promo_end_date).slice(0, 10) : '',
-    affiliate_url: x.affiliate_url != null ? String(x.affiliate_url) : (x.link != null ? String(x.link) : ''),
+    affiliate_url: x.affiliate_url != null ? String(x.affiliate_url) : (x.link != null ? String(x.link) : (x.url != null ? String(x.url) : '')),
     card_name: x.card_name != null ? String(x.card_name) : (x.cardName != null ? String(x.cardName) : ''),
     issuer: x.issuer != null ? String(x.issuer) : '',
     recommendation_tier: x.recommendation_tier != null ? String(x.recommendation_tier) : ''
